@@ -1,1 +1,442 @@
-raw eba
+# Spa.Inc — Admin & Staff Dashboard
+
+## Project Overview
+
+A centralized web-based dashboard for Spa.Inc that allows management to track customers over time, manage remote massage therapists, monitor payments and revenue, identify top-earning staff, and manage daily operational costs and finances. The system serves two user roles: **Admin** (business owners/managers) and **Staff** (massage therapists).
+
+---
+
+## Tech Stack
+
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Next.js 14+ (App Router), TypeScript, Tailwind CSS |
+| UI Components | shadcn/ui |
+| Charts & Analytics | Recharts |
+| State Management | React Context + Server Components (minimize client state) |
+| Backend / API | Next.js API Routes (Route Handlers) |
+| Database | PostgreSQL (via Supabase) |
+| ORM | Prisma |
+| Authentication | Supabase Auth (email + magic link) |
+| File Storage | Supabase Storage (receipts, profile photos) |
+| Deployment | Vercel |
+
+---
+
+## Database Schema
+
+### Core Tables
+
+```
+users
+├── id (uuid, PK)
+├── email (unique)
+├── full_name
+├── role (enum: ADMIN, STAFF)
+├── phone
+├── avatar_url
+├── is_active (bool, default true)
+├── created_at
+└── updated_at
+
+clients
+├── id (uuid, PK)
+├── full_name
+├── email
+├── phone
+├── date_of_birth
+├── address
+├── notes (text — preferences, allergies, etc.)
+├── created_at
+└── updated_at
+
+services
+├── id (uuid, PK)
+├── name (e.g., "Deep Tissue Massage", "Swedish Massage")
+├── description
+├── default_duration_minutes (int)
+├── default_price (decimal)
+├── is_active (bool)
+├── created_at
+└── updated_at
+
+appointments
+├── id (uuid, PK)
+├── client_id (FK → clients)
+├── staff_id (FK → users)
+├── service_id (FK → services)
+├── scheduled_at (timestamp)
+├── duration_minutes (int)
+├── status (enum: SCHEDULED, COMPLETED, CANCELLED, NO_SHOW)
+├── location_type (enum: IN_SPA, REMOTE)
+├── location_notes (text — address for remote visits)
+├── satisfaction_rating (int, 1-5, nullable)
+├── notes
+├── created_at
+└── updated_at
+
+payments
+├── id (uuid, PK)
+├── appointment_id (FK → appointments, nullable)
+├── client_id (FK → clients)
+├── staff_id (FK → users)
+├── amount (decimal)
+├── payment_method (enum: CASH, CARD, TRANSFER, OTHER)
+├── payment_date (date)
+├── status (enum: PENDING, COMPLETED, REFUNDED)
+├── reference_note
+├── created_at
+└── updated_at
+
+expenses
+├── id (uuid, PK)
+├── category (enum: SUPPLIES, UTILITIES, RENT, PAYROLL, EQUIPMENT, MARKETING, OTHER)
+├── description
+├── amount (decimal)
+├── expense_date (date)
+├── is_recurring (bool)
+├── recurrence_interval (enum: DAILY, WEEKLY, MONTHLY, nullable)
+├── receipt_url (text, nullable)
+├── created_by (FK → users)
+├── created_at
+└── updated_at
+
+staff_schedules
+├── id (uuid, PK)
+├── staff_id (FK → users)
+├── day_of_week (int, 0-6)
+├── start_time (time)
+├── end_time (time)
+├── is_available (bool)
+├── created_at
+└── updated_at
+```
+
+---
+
+## Feature Modules
+
+### 1. Client Tracking & History
+**Route:** `/dashboard/clients`
+
+**Capabilities:**
+- Client directory with search, filter, and sort
+- Individual client profile pages showing: visit history timeline, services received, total spend, appointment frequency, preferences/notes
+- Client retention analytics: new vs returning clients over time, visit frequency trends, churn indicators
+- Add/edit client records
+
+**Key views:**
+- Client list (table with pagination)
+- Client detail page (`/dashboard/clients/[id]`)
+- Client analytics summary cards on main dashboard
+
+---
+
+### 2. Remote Staff Management
+**Route:** `/dashboard/staff`
+
+**Capabilities:**
+- Staff directory showing all massage therapists (active/inactive)
+- Individual staff profiles with: schedule/availability, session counts, assigned clients, satisfaction ratings, location type (remote vs in-spa)
+- Real-time availability overview (who is free, who is booked)
+- Schedule management per therapist
+- Session tracking: completed, cancelled, no-show rates
+
+**Key views:**
+- Staff list with status indicators
+- Staff detail page (`/dashboard/staff/[id]`)
+- Availability calendar/grid view
+- Staff schedule editor
+
+---
+
+### 3. Revenue & Payments
+**Route:** `/dashboard/payments`
+
+**Capabilities:**
+- Log payments against appointments or as standalone entries
+- Payment history with filters: date range, client, staff member, payment method, status
+- Revenue breakdowns by: service type, time period (daily/weekly/monthly), individual therapist
+- Revenue trend charts (line/bar)
+- Payment status tracking (pending, completed, refunded)
+
+**Key views:**
+- Payments table with filters
+- Revenue analytics page (`/dashboard/analytics/revenue`)
+- Dashboard summary cards: today's revenue, MTD, YTD
+
+---
+
+### 4. Top Earner Analytics
+**Route:** `/dashboard/analytics/performance`
+
+**Capabilities:**
+- Staff leaderboard ranked by earnings (configurable time period)
+- Individual performance cards: total revenue generated, number of sessions, average revenue per session, client satisfaction score
+- Comparison charts across staff members
+- Trend analysis: performance over weeks/months
+
+**Key views:**
+- Leaderboard table/cards
+- Performance comparison bar charts
+- Individual staff performance drill-down
+
+---
+
+### 5. Daily Costs & Finances
+**Route:** `/dashboard/finances`
+
+**Capabilities:**
+- Expense logging with categories (supplies, utilities, rent, payroll, equipment, marketing, other)
+- Recurring expense support (auto-populate daily/weekly/monthly)
+- Daily, weekly, monthly cost summaries
+- Profit & Loss view: revenue minus expenses over a period
+- Financial reports: exportable to CSV/PDF
+- Budget vs actual tracking (future enhancement)
+
+**Key views:**
+- Expense log table with filters
+- Add/edit expense form
+- P&L summary page (`/dashboard/finances/pnl`)
+- Daily cost breakdown chart
+
+---
+
+## Page Structure
+
+```
+/                           → Marketing landing / redirect to login
+/login                      → Auth page
+/dashboard                  → Main overview (role-based)
+/dashboard/clients          → Client directory
+/dashboard/clients/[id]     → Client detail
+/dashboard/clients/new      → Add new client
+/dashboard/staff            → Staff directory
+/dashboard/staff/[id]       → Staff detail & schedule
+/dashboard/payments         → Payment log
+/dashboard/payments/new     → Record payment
+/dashboard/analytics        → Analytics overview
+/dashboard/analytics/revenue      → Revenue breakdowns
+/dashboard/analytics/performance  → Staff leaderboard & performance
+/dashboard/finances         → Expense management
+/dashboard/finances/pnl     → Profit & Loss reports
+/dashboard/settings         → Account, business info, user management
+```
+
+---
+
+## Main Dashboard (Overview)
+
+The `/dashboard` home page shows a summary of key metrics via cards and charts:
+
+**Summary Cards (top row):**
+- Today's Revenue
+- Monthly Revenue (MTD)
+- Active Clients
+- Appointments Today
+- Daily Costs
+
+**Charts:**
+- Revenue vs Expenses trend (line chart, last 30 days)
+- Top 5 Earners (horizontal bar)
+- Client visits this week (bar chart)
+- Upcoming appointments list (next 5)
+
+---
+
+## Authentication & Roles
+
+| Role | Access |
+|------|--------|
+| **Admin** | Full access — all modules, user management, financial reports, settings |
+| **Staff** | Limited — own schedule, own clients, own earnings, no expense management or other staff data |
+
+Middleware checks role on every `/dashboard/*` route. Staff users are redirected away from restricted pages.
+
+---
+
+## Development Phases
+
+### Phase 1 — Foundation (Week 1-2)
+- Project scaffolding (Next.js, Tailwind, shadcn/ui, Prisma, Supabase)
+- Database schema & migrations
+- Authentication flow (login, signup, role-based redirect)
+- Layout shell: sidebar, header, responsive nav
+- Dashboard overview page with placeholder cards
+
+### Phase 2 — Client & Staff Modules (Week 3-4)
+- Client CRUD + detail pages
+- Client visit history timeline
+- Staff CRUD + detail pages
+- Staff schedule management
+- Availability overview
+
+### Phase 3 — Payments & Revenue (Week 5-6)
+- Payment logging (standalone + linked to appointments)
+- Payment history table with filters
+- Revenue analytics charts (by service, by staff, by period)
+- Dashboard summary cards wired to real data
+
+### Phase 4 — Analytics & Finances (Week 7-8)
+- Staff leaderboard & performance dashboards
+- Expense CRUD with categories & recurring support
+- Daily cost summaries
+- Profit & Loss reports
+- CSV/PDF export
+
+### Phase 5 — Polish & Launch (Week 9-10)
+- Role-based access enforcement & testing
+- Responsive design QA
+- Loading states, error handling, empty states
+- Seed data & demo mode
+- Deployment to Vercel + Supabase production
+
+---
+
+## Design Guidelines
+
+- **Color palette:** Deep blue primary (`#1B4F72`), accent blue (`#2E86C1`), light blue surfaces (`#D6EAF8`), neutral grays for text
+- **Typography:** Inter (headings + body) via `next/font`
+- **Layout:** Fixed sidebar (collapsible on mobile) + top header bar with breadcrumbs
+- **Cards:** Rounded corners (8px), subtle shadow, white background
+- **Tables:** Alternating row shading, sticky headers, pagination
+- **Charts:** Consistent color scheme matching brand palette, tooltips on hover
+- **Mobile:** Sidebar collapses to hamburger menu, tables become card views on small screens
+
+---
+
+## File & Folder Structure
+
+```
+spa-dashboard/
+├── prisma/
+│   └── schema.prisma
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx
+│   │   ├── page.tsx                    (landing/redirect)
+│   │   ├── login/page.tsx
+│   │   └── dashboard/
+│   │       ├── layout.tsx              (sidebar + header shell)
+│   │       ├── page.tsx                (overview)
+│   │       ├── clients/
+│   │       │   ├── page.tsx
+│   │       │   ├── [id]/page.tsx
+│   │       │   └── new/page.tsx
+│   │       ├── staff/
+│   │       │   ├── page.tsx
+│   │       │   └── [id]/page.tsx
+│   │       ├── payments/
+│   │       │   ├── page.tsx
+│   │       │   └── new/page.tsx
+│   │       ├── analytics/
+│   │       │   ├── page.tsx
+│   │       │   ├── revenue/page.tsx
+│   │       │   └── performance/page.tsx
+│   │       ├── finances/
+│   │       │   ├── page.tsx
+│   │       │   └── pnl/page.tsx
+│   │       └── settings/page.tsx
+│   ├── components/
+│   │   ├── ui/                         (shadcn components)
+│   │   ├── layout/
+│   │   │   ├── sidebar.tsx
+│   │   │   ├── header.tsx
+│   │   │   └── breadcrumbs.tsx
+│   │   ├── charts/
+│   │   │   ├── revenue-chart.tsx
+│   │   │   ├── expense-chart.tsx
+│   │   │   └── leaderboard-chart.tsx
+│   │   ├── clients/
+│   │   │   ├── client-table.tsx
+│   │   │   ├── client-form.tsx
+│   │   │   └── client-history.tsx
+│   │   ├── staff/
+│   │   │   ├── staff-table.tsx
+│   │   │   ├── staff-schedule.tsx
+│   │   │   └── availability-grid.tsx
+│   │   ├── payments/
+│   │   │   ├── payment-table.tsx
+│   │   │   └── payment-form.tsx
+│   │   └── finances/
+│   │       ├── expense-table.tsx
+│   │       ├── expense-form.tsx
+│   │       └── pnl-summary.tsx
+│   ├── lib/
+│   │   ├── db.ts                       (Prisma client)
+│   │   ├── supabase.ts                 (Supabase client)
+│   │   ├── auth.ts                     (auth helpers)
+│   │   └── utils.ts                    (formatCurrency, formatDate, etc.)
+│   ├── types/
+│   │   └── index.ts                    (shared TypeScript types)
+│   └── middleware.ts                   (auth + role checks)
+├── .env.local
+├── tailwind.config.ts
+├── package.json
+└── README.md
+```
+
+---
+
+## API Routes
+
+All under `/app/api/`:
+
+```
+GET/POST        /api/clients              — list / create
+GET/PUT/DELETE  /api/clients/[id]         — read / update / delete
+GET             /api/clients/[id]/history — visit history
+
+GET/POST        /api/staff                — list / create
+GET/PUT         /api/staff/[id]           — read / update
+GET/PUT         /api/staff/[id]/schedule  — get / update schedule
+
+GET/POST        /api/appointments         — list / create
+PUT             /api/appointments/[id]    — update status/details
+
+GET/POST        /api/payments             — list / create
+GET             /api/payments/summary     — revenue summaries (query params for period)
+
+GET/POST        /api/expenses             — list / create
+PUT/DELETE      /api/expenses/[id]        — update / delete
+GET             /api/expenses/summary     — cost summaries
+
+GET             /api/analytics/revenue    — revenue breakdowns
+GET             /api/analytics/leaderboard — staff rankings
+GET             /api/analytics/pnl        — profit & loss data
+```
+
+---
+
+## Key Conventions
+
+- **Currency:** All monetary values stored as integers (cents) in DB, formatted on display
+- **Dates:** Stored as UTC timestamps, displayed in client's local timezone
+- **Pagination:** Cursor-based for large tables, page-based for smaller datasets
+- **Validation:** Zod schemas shared between client forms and API route handlers
+- **Error handling:** Consistent API response format: `{ data, error, message }`
+- **Loading states:** Skeleton components from shadcn/ui for all async content
+- **Empty states:** Friendly illustrations + CTAs when no data exists
+
+---
+
+## Environment Variables
+
+```
+DATABASE_URL=                 # Supabase PostgreSQL connection string
+DIRECT_URL=                   # Supabase direct connection (for migrations)
+NEXT_PUBLIC_SUPABASE_URL=     # Supabase project URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY= # Supabase anon key
+SUPABASE_SERVICE_ROLE_KEY=    # Supabase service role key (server only)
+```
+
+---
+
+## Notes & Decisions
+
+- We chose **Supabase** over a custom auth/DB setup for faster development and built-in real-time capabilities (useful for live availability updates in future).
+- **Prisma** is used as the ORM for type-safe database access and easy migrations, even with Supabase as the host.
+- The leaderboard intentionally only shows **earnings data** to Admin users. Staff can only see their own performance.
+- Expense management is **Admin-only** — staff should not see operational cost data.
+- The P&L report is a calculated view (total revenue - total expenses) and does not require a separate DB table.
