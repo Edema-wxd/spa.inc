@@ -6,23 +6,26 @@ Guidance for Claude Code when working in this repository.
 
 Spa.Inc is an admin and staff dashboard for spa / massage businesses: clients, staff schedules,
 payments, revenue analytics, expenses and P&L, plus public marketing pages (landing, pricing,
-contact sales). The full product spec lives in `raw.txt` (schema, routes, API plan, phases).
+contact sales). The original product spec is `raw.txt`; `README.md` has the current overview.
 
-**Current state: frontend only.** Every page reads from in-memory mock data in
-`src/lib/mock-data/`. There is no backend, database, auth, or middleware yet. Forms
-`console.log` their payload and show a `sonner` toast. Supabase + Prisma + API route handlers
-are planned (see `raw.txt`) but not installed.
+**Current state: demo.** No auth and no database are required. The backend layers exist
+(API routes, services, repositories, Prisma schema) and run against an in-memory store seeded
+from `src/lib/mock-data/`. Many dashboard pages still import mock data directly; migrate them to
+services when you touch them (the clients list and Add Client flow are the reference examples).
 
 ## Commands
 
 ```bash
-npm run dev     # dev server on :3000
-npm run build   # production build (also runs the TypeScript check)
-npm run lint    # eslint (flat config, next core-web-vitals + typescript)
-npx tsc --noEmit
+npm run dev          # dev server on :3000
+npm run build        # production build (runs the TypeScript check too)
+npm run lint         # eslint (flat config, next core-web-vitals + typescript)
+npm run typecheck    # tsc --noEmit
+npm run db:generate  # Prisma client -> src/generated/prisma (also runs on postinstall)
+npm run db:validate  # validate prisma/schema.prisma
 ```
 
-There is no test suite. Validate changes with `npm run lint` and `npm run build`.
+There is no test suite. Validate changes with `npm run lint`, `npm run typecheck` and
+`npm run build`. To preview empty states, build/run with `NEXT_PUBLIC_DEMO_EMPTY=true`.
 
 ## Stack
 
@@ -30,74 +33,96 @@ There is no test suite. Validate changes with `npm run lint` and `npm run build`
 - Tailwind CSS v4 (CSS-first config in `src/app/globals.css`, no `tailwind.config`)
 - shadcn/ui ("new-york" style) on the unified `radix-ui` package, components in `src/components/ui/`
 - Recharts for charts, TanStack Table for tables
-- react-hook-form + zod (import from `zod/v4`) + `@hookform/resolvers`
+- react-hook-form + zod 4 + `@hookform/resolvers`
+- Prisma 7 (`prisma-client` generator, `@prisma/adapter-pg`, config in `prisma.config.ts`)
 - date-fns, lucide-react, sonner
 
 ## Layout
 
 ```
-src/app/                    routes (App Router)
-  page.tsx                  marketing landing
-  pricing/                  public pricing page (tiers, comparison, add-ons)
-  contact-sales/            custom quote / sales enquiry form
-  login/                    mock auth form
-  dashboard/                sidebar shell (layout.tsx) + all admin modules
+prisma/schema.prisma        multi-tenant Postgres schema (organizations, subscriptions, locations, ...)
+src/app/
+  api/                      route handlers - thin: validate, call a service, return the envelope
+  dashboard/                server layout (loads plan) + modules; gated segments have a layout.tsx
+  pricing/, contact-sales/  public pages
+src/server/                 server-only code
+  context.ts                getRequestContext(): organizationId, userId, role, plan (demo: cookie)
+  entitlements.ts           assertFeature / assertCanAdd / assertRole
+  errors.ts, http.ts        ApiError types, route() wrapper, ok()/created(), parseBody/parseQuery
+  services/                 business rules per domain - the only place plan/role checks live
+  repositories/             types.ts (interfaces), memory.ts (default), prisma.ts; getRepositories()
+src/lib/
+  plans.ts                  SINGLE SOURCE OF TRUTH for plan limits and features
+  pricing.ts                prices (USD + NGN), marketing copy, comparison table (derived from plans.ts)
+  region.ts                 visitor country -> pricing currency
+  validation/               zod schemas shared by forms and API routes
+  api-client.ts             apiFetch() for client components
+  mock-data/                seed data + metric helpers used by pages not yet on services
 src/components/
   ui/                       shadcn primitives - avoid hand-editing, regenerate with the shadcn CLI
-  shared/                   app-wide building blocks (PageHeader, DataTable, SummaryCard, ...)
-  layout/                   sidebar, header, breadcrumbs, nav-items.ts (dashboard nav config)
-  marketing/                public-site header
-  pricing/                  pricing cards, comparison table, add-ons, contact sales form
-  <module>/                 feature components per dashboard module (clients, staff, ...)
-  charts/                   Recharts components
-src/lib/
-  utils.ts                  cn(), formatCurrency(), date/phone helpers
-  pricing.ts                SINGLE SOURCE OF TRUTH for plans, features, add-ons, prices
-  mock-data/                seeded data + derived metric helpers (index.ts)
-  chart-colors.ts           brand chart palette
-src/types/index.ts          domain types mirroring the planned DB schema
+  shared/                   PageHeader, DataTable, ChartWrapper, EmptyState, SummaryCard, ...
+  plan/                     PlanProvider/usePlan, RequireFeature, FeatureGate, UpgradePrompt, meters
+  layout/                   dashboard shell, sidebars, header, nav-items.ts
+  settings/, pricing/, ...  feature components
+src/generated/              Prisma client output (gitignored)
 ```
 
 ## Conventions
 
-- Default to Server Components. Add `"use client"` only where state, effects, or event handlers
-  are needed, and keep client components as small leaf components (see `pricing-cards.tsx`).
+- Default to Server Components; `"use client"` only for state, effects or handlers. Pass data
+  from server pages into small client components (see `clients/page.tsx` -> `ClientsTable`).
+  Column definitions contain functions, so wrap `DataTable` in a client component when the page
+  is a server component.
+- Data flow is route -> service -> repository. Never access storage from a route or a page
+  directly; use a service (or `getRepositories()` for simple reads in server pages).
+- Every repository method takes `organizationId`. Keep both repository implementations in sync
+  when changing `repositories/types.ts`.
+- API responses always use `{ data, error, message, details? }` via `ok()` / `created()` and
+  thrown `ApiError`s; wrap handlers in `route()`.
+- Put zod schemas in `src/lib/validation/` and import them in both the form and the route.
 - Dynamic route `params` are a `Promise` in Next 16: `const { id } = await params`.
 - Client components using `useSearchParams` must be wrapped in `<Suspense>` by their page.
 - Use the `@/` path alias. Compose classes with `cn()`.
 - Brand colors are Tailwind theme tokens: `spa-primary`, `spa-accent`, `spa-50` ... `spa-900`,
   `spa-surface`. Prefer these over raw hex.
-- Dashboard money is stored as integer **cents** and rendered with `formatCurrency()` (USD).
-  Pricing is in whole **Naira** and rendered with `formatNaira()` from `src/lib/pricing.ts`.
-  Do not mix the two.
+- Dashboard money is integer **cents** (USD), rendered with `formatCurrency()`. Pricing amounts
+  are whole units per currency, rendered with `formatPrice(amount, currency)`. Don't mix them.
 - New dashboard pages: add the route under `src/app/dashboard/`, register it in
-  `src/components/layout/nav-items.ts`, and start with `<PageHeader />`.
-- Forms: zod schema + `zodResolver`, show field errors as `text-xs text-destructive`.
+  `src/components/layout/nav-items.ts` (with `feature` if plan-gated), and start with `<PageHeader />`.
+- Every list, table and chart needs an empty state (`EmptyState`, `DataTable emptyState`,
+  `ChartWrapper isEmpty`).
+- Forms: zod schema + `zodResolver`, submit with `apiFetch`, show field errors as
+  `text-xs text-destructive`, `router.refresh()` after mutations so plan usage updates.
 - Do not use em dashes in user-facing copy; use commas or hyphens.
 
-## Pricing
+## Plans
 
-All plan data is in `src/lib/pricing.ts`; the UI derives everything from it.
+- Limits and features: `src/lib/plans.ts`. Change them there; pricing table, UI locks and API
+  enforcement all follow.
+- Enforce on the server in the service (`assertFeature`, `assertCanAdd`). UI gating
+  (`RequireFeature` in a segment layout, `FeatureGate`, `AddResourceButton`, `LimitBanner`) is
+  for UX only and never replaces the server check.
+- Downgrades keep existing data; they only block adding more.
+- Demo plan lives in the `spa-plan` cookie (default `executive`), switched via `PUT /api/plan`
+  from Settings > Plan & Billing.
 
-| Tier | Audience | Monthly | Admins | Clients |
-|------|----------|---------|--------|---------|
-| Essentials | Single users | ₦15,000 (14-day free trial) | 1 | 50 |
-| Manager (Most Popular) | Small stores, one office | ₦35,000 | 3 | 200 |
-| Executive | Established single-office stores | ₦75,000 | Unlimited | 500 |
-| Enterprise | Multiple locations | Custom quote, via `/contact-sales` | Unlimited | Unlimited |
+| Tier | Audience | USD | NGN | Admins | Clients | Locations |
+|------|----------|-----|-----|--------|---------|-----------|
+| Essentials | Single users, 14-day trial | $19 | ₦15,000 | 1 | 50 | 1 |
+| Manager (Most Popular) | Small stores, one office | $49 | ₦35,000 | 3 | 200 | 1 |
+| Executive | Established single-office stores | $99 | ₦75,000 | Unlimited | 500 | 1 |
+| Enterprise | Multiple locations | Custom (`/contact-sales`) | Custom | Unlimited | Unlimited | Unlimited |
 
-- Annual billing is `ANNUAL_DISCOUNT` (10%) off. Email confirmations start at Executive.
-  Support level is the same on every tier.
-- Add-ons (coming soon): WhatsApp ₦15k, online booking ₦25k, Paystack ₦20k, smart scheduling ₦18k,
-  loyalty ₦12k, PDF reports ₦10k, multi-location (Enterprise, contact sales).
+- Pricing is USD everywhere except Nigeria (NGN), detected from geo headers, overridable with
+  `?region=ng|intl`. All prices are placeholders pending business sign-off.
+- Annual billing is `ANNUAL_DISCOUNT` (10%) off. Support level is the same on every tier.
 - `/contact-sales` accepts `?plan=<tierId>` and `?addon=<addOnId>` to prefill the form.
-- Essentials / Manager / Executive prices are placeholders pending business sign-off.
 
 ## Known gaps
 
-- No auth or role enforcement; `/dashboard` is publicly reachable and `/login` just redirects.
-- Plan limits (clients, admin seats, features) are not enforced anywhere in the dashboard yet.
-- The contact sales form does not submit anywhere; wire it to an API route / CRM.
-- Mock helpers in `src/lib/mock-data/index.ts` fall back to hardcoded demo numbers when the
-  data for "today" is empty, so dashboard figures are not always derived from the dataset.
-- `README.md` is still the create-next-app boilerplate; `raw.txt` is the real spec.
+- No auth or route protection; `getRequestContext()` returns a fixed demo admin.
+- The in-memory store resets on restart and is per server instance.
+- Notifications (confirmation emails, sales lead alerts) only log to the console.
+- Mock helpers fall back to hardcoded demo numbers when "today" has no data (disabled by
+  `NEXT_PUBLIC_DEMO_EMPTY=true`).
+- No database seed script or migrations committed yet.
