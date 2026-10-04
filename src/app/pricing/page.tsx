@@ -7,6 +7,7 @@ import { PricingCards } from "@/components/pricing/pricing-cards"
 import { ComparisonTable } from "@/components/pricing/comparison-table"
 import { AddOnsGrid } from "@/components/pricing/add-ons-grid"
 import { ANNUAL_DISCOUNT, FREE_TRIAL_DAYS } from "@/lib/pricing"
+import { getPricingCurrency } from "@/lib/region"
 
 export const metadata: Metadata = {
   title: "Pricing | Spa.Inc",
@@ -14,7 +15,14 @@ export const metadata: Metadata = {
     "Simple plans for solo therapists, single-location spas, and multi-branch spa groups.",
 }
 
-export default function PricingPage() {
+export default async function PricingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ region?: string }>
+}) {
+  const { region } = await searchParams
+  const currency = await getPricingCurrency(region)
+
   return (
     <div className="min-h-screen bg-spa-surface">
       <SiteHeader />
@@ -33,7 +41,24 @@ export default function PricingPage() {
         </section>
 
         <section aria-label="Plans">
-          <PricingCards />
+          <PricingCards currency={currency} />
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            {currency === "NGN" ? (
+              <>
+                Prices shown in Nigerian Naira.{" "}
+                <Link href="/pricing?region=intl" className="text-spa-accent hover:underline">
+                  View prices in USD
+                </Link>
+              </>
+            ) : (
+              <>
+                Prices shown in US Dollars. Based in Nigeria?{" "}
+                <Link href="/pricing?region=ng" className="text-spa-accent hover:underline">
+                  View prices in NGN
+                </Link>
+              </>
+            )}
+          </p>
         </section>
 
         <section className="space-y-6">
@@ -53,7 +78,7 @@ export default function PricingPage() {
               Optional modules coming soon. Add them to any plan for a monthly fee.
             </p>
           </div>
-          <AddOnsGrid />
+          <AddOnsGrid currency={currency} />
         </section>
 
         {/* Sales CTA */}

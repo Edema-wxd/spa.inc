@@ -10,20 +10,23 @@ interface PageHeaderProps {
     href: string
     icon?: LucideIcon
   }
+  /** Custom right-hand content, used instead of `action` */
+  children?: React.ReactNode
 }
 
-export function PageHeader({ title, description, action }: PageHeaderProps) {
+export function PageHeader({ title, description, action, children }: PageHeaderProps) {
   const ActionIcon = action?.icon || Plus
 
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex flex-wrap items-center justify-between gap-4">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
         {description && (
           <p className="mt-1 text-muted-foreground">{description}</p>
         )}
       </div>
-      {action && (
+      {children}
+      {!children && action && (
         <Button asChild>
           <Link href={action.href}>
             <ActionIcon className="h-4 w-4" />

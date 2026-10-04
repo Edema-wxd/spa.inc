@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
+import { EmptyState } from "@/components/shared/empty-state"
 import { Button } from "@/components/ui/button"
 import {
   ChevronLeft,
@@ -39,6 +40,8 @@ interface DataTableProps<TData, TValue> {
   searchKey?: string
   searchPlaceholder?: string
   pageSize?: number
+  /** Shown when there is no data at all (as opposed to no search matches) */
+  emptyState?: React.ReactNode
 }
 
 export function DataTable<TData, TValue>({
@@ -47,6 +50,7 @@ export function DataTable<TData, TValue>({
   searchKey,
   searchPlaceholder = "Search...",
   pageSize = 10,
+  emptyState,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -72,6 +76,16 @@ export function DataTable<TData, TValue>({
       },
     },
   })
+
+  if (data.length === 0) {
+    return (
+      <div className="rounded-md border bg-card">
+        {emptyState ?? (
+          <EmptyState title="Nothing here yet" description="Records you add will show up here." />
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -145,11 +159,8 @@ export function DataTable<TData, TValue>({
               ))
             ) : (
               <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center text-muted-foreground"
-                >
-                  No results.
+                <TableCell colSpan={columns.length}>
+                  <EmptyState compact />
                 </TableCell>
               </TableRow>
             )}

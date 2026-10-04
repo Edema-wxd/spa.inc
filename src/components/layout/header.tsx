@@ -12,13 +12,17 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import Link from "next/link"
 import { Breadcrumbs } from "./breadcrumbs"
+import { usePlan } from "@/components/plan/plan-provider"
 
 interface HeaderProps {
   onMenuClick: () => void
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
+  const { planName } = usePlan()
+
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b bg-background px-4 md:px-6">
       {/* Left side */}
@@ -49,6 +53,13 @@ export function Header({ onMenuClick }: HeaderProps) {
             readOnly
           />
         </div>
+
+        {/* Current plan */}
+        <Link href="/dashboard/settings?tab=plan" title="Plan & Billing">
+          <Badge variant="outline" className="border-spa-accent text-spa-accent">
+            {planName} plan
+          </Badge>
+        </Link>
 
         {/* Notification bell */}
         <Button variant="ghost" size="icon" className="relative">

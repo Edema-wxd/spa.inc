@@ -2,7 +2,6 @@
 
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { z } from "zod"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import Link from "next/link"
@@ -28,20 +27,10 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { clients, users, services } from "@/lib/mock-data"
 import { formatCurrency } from "@/lib/utils"
+import { apiFetch } from "@/lib/api-client"
+import { paymentSchema, type PaymentInput } from "@/lib/validation/payments"
 
-const paymentFormSchema = z.object({
-  client_id: z.string().min(1, "Please select a client"),
-  staff_id: z.string().min(1, "Please select a staff member"),
-  service_id: z.string().optional(),
-  amount: z.number().min(1, "Amount must be greater than 0"),
-  payment_method: z.enum(["CASH", "CARD", "TRANSFER", "OTHER"], {
-    message: "Please select a payment method",
-  }),
-  payment_date: z.string().min(1, "Please select a date"),
-  reference_note: z.string().optional(),
-})
-
-type PaymentFormValues = z.infer<typeof paymentFormSchema>
+type PaymentFormValues = PaymentInput
 
 const today = new Date().toISOString().split("T")[0]
 
@@ -55,7 +44,7 @@ export function PaymentForm() {
   const router = useRouter()
 
   const form = useForm<PaymentFormValues>({
-    resolver: zodResolver(paymentFormSchema),
+    resolver: zodResolver(paymentSchema),
     defaultValues: {
       client_id: "",
       staff_id: "",
@@ -67,10 +56,15 @@ export function PaymentForm() {
     },
   })
 
-  function onSubmit(data: PaymentFormValues) {
-    console.log("Payment recorded:", data)
-    toast.success("Payment recorded successfully")
-    router.push("/dashboard/payments")
+  async function onSubmit(data: PaymentFormValues) {
+    try {
+      await apiFetch("/api/payments", { method: "POST", body: data })
+      toast.success("Payment recorded successfully")
+      router.push("/dashboard/payments")
+      router.refresh()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not record payment")
+    }
   }
 
   function handleServiceChange(serviceId: string) {
@@ -265,7 +259,9 @@ export function PaymentForm() {
         </div>
 
         <div className="flex items-center gap-4 pt-4">
-          <Button type="submit">Record Payment</Button>
+          <Button type="submit" disabled={form.formState.isSubmitting}>
+            Record Payment
+          </Button>
           <Button variant="outline" type="button" asChild>
             <Link href="/dashboard/payments">Cancel</Link>
           </Button>

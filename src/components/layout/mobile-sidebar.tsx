@@ -2,8 +2,9 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Sparkles } from "lucide-react"
+import { Sparkles, Lock } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { usePlan } from "@/components/plan/plan-provider"
 import { navSections } from "./nav-items"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -22,6 +23,7 @@ interface MobileSidebarProps {
 
 export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
   const pathname = usePathname()
+  const { hasFeature } = usePlan()
 
   return (
     <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -57,6 +59,7 @@ export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
                 </p>
                 <div className="flex flex-col gap-1">
                   {section.items.map((item) => {
+                    const locked = !!item.feature && !hasFeature(item.feature)
                     const isActive =
                       pathname === item.href ||
                       (item.href !== "/dashboard" &&
@@ -83,6 +86,12 @@ export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
                           )}
                         />
                         <span>{item.label}</span>
+                        {locked && (
+                          <Lock
+                            className="ml-auto size-3.5 text-sidebar-foreground/50"
+                            aria-label="Upgrade required"
+                          />
+                        )}
                       </Link>
                     )
                   })}

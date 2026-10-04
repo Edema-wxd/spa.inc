@@ -18,15 +18,16 @@ import { Switch } from "@/components/ui/switch"
 import {
   ANNUAL_DISCOUNT,
   FREE_TRIAL_DAYS,
-  formatNaira,
+  formatPrice,
   getAnnualTotal,
   getMonthlyEquivalent,
   pricingTiers,
   type BillingCycle,
+  type Currency,
 } from "@/lib/pricing"
 import { cn } from "@/lib/utils"
 
-export function PricingCards() {
+export function PricingCards({ currency }: { currency: Currency }) {
   const [cycle, setCycle] = useState<BillingCycle>("monthly")
   const isAnnual = cycle === "annual"
 
@@ -83,7 +84,7 @@ export function PricingCards() {
 
             <CardContent className="flex-1 space-y-6">
               <div className="min-h-20">
-                {tier.monthlyPrice === null ? (
+                {tier.prices === null ? (
                   <>
                     <p className="text-3xl font-bold tracking-tight">Custom quote</p>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -94,16 +95,16 @@ export function PricingCards() {
                   <>
                     <p className="flex items-baseline gap-1">
                       <span className="text-3xl font-bold tracking-tight tabular-nums">
-                        {formatNaira(getMonthlyEquivalent(tier.monthlyPrice, cycle))}
+                        {formatPrice(getMonthlyEquivalent(tier.prices[currency], cycle), currency)}
                       </span>
                       <span className="text-sm text-muted-foreground">/mo</span>
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {isAnnual ? (
                         <>
-                          {formatNaira(getAnnualTotal(tier.monthlyPrice))} billed yearly
+                          {formatPrice(getAnnualTotal(tier.prices[currency]), currency)} billed yearly
                           <span className="ml-1 line-through">
-                            {formatNaira(tier.monthlyPrice * 12)}
+                            {formatPrice(tier.prices[currency] * 12, currency)}
                           </span>
                         </>
                       ) : (

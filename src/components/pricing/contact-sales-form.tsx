@@ -4,7 +4,6 @@ import { useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { Controller, useForm } from "react-hook-form"
-import { z } from "zod/v4"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
 import { CheckCircle2 } from "lucide-react"
@@ -21,30 +20,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { addOns, pricingTiers, type TierId } from "@/lib/pricing"
+import { addOns, pricingTiers } from "@/lib/pricing"
+import { isTierId } from "@/lib/plans"
+import { apiFetch } from "@/lib/api-client"
+import {
+  LOCATION_OPTIONS as locationOptions,
+  STAFF_OPTIONS as staffOptions,
+  salesLeadSchema,
+  type SalesLeadInput,
+} from "@/lib/validation/sales-leads"
 
-const tierIds = pricingTiers.map((t) => t.id) as [TierId, ...TierId[]]
-
-const locationOptions = ["1", "2-3", "4-10", "10+"] as const
-const staffOptions = ["1-5", "6-15", "16-50", "50+"] as const
-
-const contactSalesSchema = z.object({
-  fullName: z.string().min(2, "Please enter your name"),
-  email: z.email("Please enter a valid email address"),
-  phone: z.string().min(7, "Please enter a valid phone number"),
-  businessName: z.string().min(2, "Please enter your business name"),
-  plan: z.enum(tierIds),
-  locations: z.enum(locationOptions, { error: "Select number of locations" }),
-  staffCount: z.enum(staffOptions, { error: "Select team size" }),
-  addOns: z.array(z.string()),
-  message: z.string().max(1000, "Message must be under 1000 characters").optional(),
-})
-
-type ContactSalesValues = z.infer<typeof contactSalesSchema>
-
-function isTierId(value: string | null): value is TierId {
-  return !!value && (tierIds as string[]).includes(value)
-}
+type ContactSalesValues = SalesLeadInput
 
 export function ContactSalesForm() {
   const searchParams = useSearchParams()
@@ -59,7 +45,7 @@ export function ContactSalesForm() {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<ContactSalesValues>({
-    resolver: zodResolver(contactSalesSchema),
+    resolver: zodResolver(salesLeadSchema),
     defaultValues: {
       fullName: "",
       email: "",
@@ -71,11 +57,17 @@ export function ContactSalesForm() {
     },
   })
 
-  function onSubmit(data: ContactSalesValues) {
-    // TODO: send to CRM / API route once the backend exists
-    console.log("Sales enquiry:", data)
-    toast.success("Thanks! Our sales team will be in touch within one business day.")
-    setSubmitted(true)
+  async function onSubmit(data: ContactSalesValues) {
+    try {
+      const { message } = await apiFetch<{ id: string }>("/api/sales-leads", {
+        method: "POST",
+        body: data,
+      })
+      toast.success(message)
+      setSubmitted(true)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not send your request")
+    }
   }
 
   if (submitted) {
@@ -123,7 +115,7 @@ export function ContactSalesForm() {
               <Input
                 id="phone"
                 type="tel"
-                placeholder="+234"
+                placeholder="Include country code"
                 {...register("phone")}
                 aria-invalid={!!errors.phone}
               />

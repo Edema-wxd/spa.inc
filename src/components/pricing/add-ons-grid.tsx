@@ -1,9 +1,9 @@
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { addOns, formatNaira } from "@/lib/pricing"
+import { addOns, formatPrice, type Currency } from "@/lib/pricing"
 
-export function AddOnsGrid() {
+export function AddOnsGrid({ currency }: { currency: Currency }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {addOns.map((addOn) => (
@@ -18,7 +18,7 @@ export function AddOnsGrid() {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">{addOn.description}</p>
-            {addOn.monthlyPrice === null ? (
+            {addOn.prices === null ? (
               <p className="text-sm font-semibold">
                 <Link
                   href={`/contact-sales?addon=${addOn.id}`}
@@ -35,7 +35,7 @@ export function AddOnsGrid() {
             ) : (
               <p className="text-sm">
                 <span className="font-semibold tabular-nums">
-                  {formatNaira(addOn.monthlyPrice)}
+                  {formatPrice(addOn.prices[currency], currency)}
                 </span>
                 <span className="text-muted-foreground">/mo</span>
               </p>

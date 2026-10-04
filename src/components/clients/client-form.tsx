@@ -1,7 +1,6 @@
 "use client"
 
 import { useForm } from "react-hook-form"
-import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -17,17 +16,11 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import Link from "next/link"
+import { ApiClientError, apiFetch } from "@/lib/api-client"
+import { clientSchema, type ClientInput } from "@/lib/validation/clients"
+import type { Client } from "@/types"
 
-const clientSchema = z.object({
-  full_name: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.email("Please enter a valid email address"),
-  phone: z.string().min(1, "Phone number is required"),
-  date_of_birth: z.string().optional(),
-  address: z.string().optional(),
-  notes: z.string().optional(),
-})
-
-type ClientFormValues = z.infer<typeof clientSchema>
+type ClientFormValues = ClientInput
 
 export function ClientForm() {
   const router = useRouter()
@@ -44,10 +37,20 @@ export function ClientForm() {
     },
   })
 
-  function onSubmit(data: ClientFormValues) {
-    console.log(data)
-    toast("Client created successfully")
-    router.push("/dashboard/clients")
+  async function onSubmit(data: ClientFormValues) {
+    try {
+      await apiFetch<Client>("/api/clients", { method: "POST", body: data })
+      toast.success("Client created successfully")
+      router.push("/dashboard/clients")
+      router.refresh()
+    } catch (err) {
+      if (err instanceof ApiClientError && err.code === "VALIDATION_ERROR" && err.details) {
+        for (const [field, messages] of Object.entries(err.details as Record<string, string[]>)) {
+          form.setError(field as keyof ClientFormValues, { message: messages[0] })
+        }
+      }
+      toast.error(err instanceof Error ? err.message : "Could not create client")
+    }
   }
 
   return (
@@ -141,7 +144,9 @@ export function ClientForm() {
         />
 
         <div className="flex items-center gap-3 pt-2">
-          <Button type="submit">Save Client</Button>
+          <Button type="submit" disabled={form.formState.isSubmitting}>
+            Save Client
+          </Button>
           <Button variant="outline" type="button" asChild>
             <Link href="/dashboard/clients">Cancel</Link>
           </Button>

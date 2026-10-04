@@ -12,6 +12,7 @@ import { RevenueExpensesChart } from "@/components/charts/revenue-expenses-chart
 import { TopEarnersChart } from "@/components/charts/top-earners-chart"
 import { WeeklyVisitsChart } from "@/components/charts/weekly-visits-chart"
 import { UpcomingAppointments } from "@/components/dashboard/upcoming-appointments"
+import { FeatureGate } from "@/components/plan/feature-gate"
 import {
   getTodaysRevenue,
   getMonthlyRevenue,
@@ -73,7 +74,9 @@ export default function DashboardPage() {
       {/* Charts Grid */}
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <RevenueExpensesChart />
-        <TopEarnersChart />
+        <FeatureGate feature="staffManagement">
+          <TopEarnersChart />
+        </FeatureGate>
         <WeeklyVisitsChart />
         <UpcomingAppointments />
       </div>

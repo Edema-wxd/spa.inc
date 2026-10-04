@@ -2,8 +2,10 @@
 
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { z } from "zod"
 import { toast } from "sonner"
+import { useRouter } from "next/navigation"
+import { apiFetch } from "@/lib/api-client"
+import { expenseSchema, type ExpenseInput } from "@/lib/validation/expenses"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,19 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-const expenseFormSchema = z.object({
-  category: z.enum(
-    ["SUPPLIES", "UTILITIES", "RENT", "PAYROLL", "EQUIPMENT", "MARKETING", "OTHER"],
-    { message: "Please select a category" }
-  ),
-  description: z.string().min(1, "Description is required"),
-  amount: z.number().min(1, "Amount must be greater than 0"),
-  expense_date: z.string().min(1, "Please select a date"),
-  is_recurring: z.boolean(),
-  recurrence_interval: z.enum(["DAILY", "WEEKLY", "MONTHLY"]).optional(),
-})
-
-type ExpenseFormValues = z.infer<typeof expenseFormSchema>
+type ExpenseFormValues = ExpenseInput
 
 const today = new Date().toISOString().split("T")[0]
 
@@ -54,8 +44,9 @@ interface ExpenseFormProps {
 }
 
 export function ExpenseForm({ open, onOpenChange }: ExpenseFormProps) {
+  const router = useRouter()
   const form = useForm<ExpenseFormValues>({
-    resolver: zodResolver(expenseFormSchema),
+    resolver: zodResolver(expenseSchema),
     defaultValues: {
       category: undefined,
       description: "",
@@ -68,11 +59,16 @@ export function ExpenseForm({ open, onOpenChange }: ExpenseFormProps) {
 
   const isRecurring = form.watch("is_recurring")
 
-  function onSubmit(data: ExpenseFormValues) {
-    console.log("Expense added:", data)
-    toast.success("Expense added successfully")
-    form.reset()
-    onOpenChange(false)
+  async function onSubmit(data: ExpenseFormValues) {
+    try {
+      await apiFetch("/api/expenses", { method: "POST", body: data })
+      toast.success("Expense added successfully")
+      form.reset()
+      onOpenChange(false)
+      router.refresh()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not add expense")
+    }
   }
 
   return (
@@ -215,7 +211,9 @@ export function ExpenseForm({ open, onOpenChange }: ExpenseFormProps) {
               >
                 Cancel
               </Button>
-              <Button type="submit">Add Expense</Button>
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                Add Expense
+              </Button>
             </DialogFooter>
           </form>
         </Form>
