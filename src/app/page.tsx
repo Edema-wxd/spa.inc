@@ -65,6 +65,14 @@ export default function LandingPage() {
           >
             <Link href="/login">Sign In</Link>
           </Button>
+          <Button
+            asChild
+            variant="ghost"
+            size="lg"
+            className="text-white hover:bg-white/10 hover:text-white"
+          >
+            <Link href="/pricing">View Pricing</Link>
+          </Button>
         </div>
 
         {/* Feature Cards */}
