@@ -12,6 +12,7 @@ import { RevenueExpensesChart } from "@/components/charts/revenue-expenses-chart
 import { TopEarnersChart } from "@/components/charts/top-earners-chart"
 import { WeeklyVisitsChart } from "@/components/charts/weekly-visits-chart"
 import { UpcomingAppointments } from "@/components/dashboard/upcoming-appointments"
+import { FeatureGate } from "@/components/plan/feature-gate"
 import {
   getTodaysRevenue,
   getMonthlyRevenue,
@@ -35,7 +36,7 @@ export default function DashboardPage() {
         <SummaryCard
           title="Today's Revenue"
           value={formatCurrency(todaysRevenue)}
-          change="+12.5%"
+          change={todaysRevenue ? "+12.5%" : undefined}
           changeType="positive"
           icon={DollarSign}
           description="vs last week"
@@ -43,7 +44,7 @@ export default function DashboardPage() {
         <SummaryCard
           title="Monthly Revenue"
           value={formatCurrency(monthlyRevenue)}
-          change="+8.2%"
+          change={monthlyRevenue ? "+8.2%" : undefined}
           changeType="positive"
           icon={TrendingUp}
           description="vs last month"
@@ -63,7 +64,7 @@ export default function DashboardPage() {
         <SummaryCard
           title="Daily Costs"
           value={formatCurrency(dailyCosts)}
-          change="-3.1%"
+          change={dailyCosts ? "-3.1%" : undefined}
           changeType="positive"
           icon={Receipt}
           description="vs last week"
@@ -73,7 +74,9 @@ export default function DashboardPage() {
       {/* Charts Grid */}
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <RevenueExpensesChart />
-        <TopEarnersChart />
+        <FeatureGate feature="staffManagement">
+          <TopEarnersChart />
+        </FeatureGate>
         <WeeklyVisitsChart />
         <UpcomingAppointments />
       </div>

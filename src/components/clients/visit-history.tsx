@@ -10,7 +10,8 @@ import {
   CardTitle,
   CardContent,
 } from "@/components/ui/card"
-import { Clock, Star } from "lucide-react"
+import { CalendarX, Clock, Star } from "lucide-react"
+import { EmptyState } from "@/components/shared/empty-state"
 
 interface VisitHistoryProps {
   clientId: string
@@ -33,7 +34,12 @@ export function VisitHistory({ clientId }: VisitHistoryProps) {
       </CardHeader>
       <CardContent>
         {clientAppointments.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No visit history yet.</p>
+          <EmptyState
+            compact
+            icon={<CalendarX className="h-10 w-10" />}
+            title="No visits yet"
+            description="Appointments for this client will build up a visit timeline here."
+          />
         ) : (
           <div className="relative space-y-0">
             {clientAppointments.map((apt, index) => {

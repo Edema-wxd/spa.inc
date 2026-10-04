@@ -2,8 +2,9 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Sparkles, ChevronLeft, ChevronRight } from "lucide-react"
+import { Sparkles, ChevronLeft, ChevronRight, Lock } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { usePlan } from "@/components/plan/plan-provider"
 import { navSections } from "./nav-items"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -22,6 +23,7 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
   const pathname = usePathname()
+  const { hasFeature } = usePlan()
 
   return (
     <aside
@@ -64,6 +66,7 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
               )}
               <div className="flex flex-col gap-1">
                 {section.items.map((item) => {
+                  const locked = !!item.feature && !hasFeature(item.feature)
                   const isActive =
                     pathname === item.href ||
                     (item.href !== "/dashboard" &&
@@ -89,6 +92,12 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
                         )}
                       />
                       {!collapsed && <span>{item.label}</span>}
+                      {!collapsed && locked && (
+                        <Lock
+                          className="ml-auto size-3.5 text-sidebar-foreground/50"
+                          aria-label="Upgrade required"
+                        />
+                      )}
                     </Link>
                   )
 
@@ -98,6 +107,7 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
                         <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
                         <TooltipContent side="right" sideOffset={10}>
                           {item.label}
+                          {locked && " (upgrade required)"}
                         </TooltipContent>
                       </Tooltip>
                     )

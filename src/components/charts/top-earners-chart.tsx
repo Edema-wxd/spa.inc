@@ -37,7 +37,12 @@ function CustomTooltip({
 
 export function TopEarnersChart() {
   return (
-    <ChartWrapper title="Top Earners">
+    <ChartWrapper
+      title="Top Earners"
+      isEmpty={data.length === 0}
+      emptyTitle="No earnings yet"
+      emptyDescription="Your top earning therapists will appear once payments are recorded."
+    >
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={data} layout="vertical">
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />

@@ -1,6 +1,8 @@
 "use client"
 
+import { CalendarClock } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
+import { EmptyState } from "@/components/shared/empty-state"
 import { schedules } from "@/lib/mock-data"
 import { formatTime } from "@/lib/utils"
 import { cn } from "@/lib/utils"
@@ -17,6 +19,19 @@ const DAY_INDICES = [1, 2, 3, 4, 5, 6, 0]
 
 export function ScheduleGrid({ staffId }: ScheduleGridProps) {
   const staffSchedules = schedules.filter((s) => s.staff_id === staffId)
+
+  if (staffSchedules.length === 0) {
+    return (
+      <Card>
+        <EmptyState
+          compact
+          icon={<CalendarClock className="h-10 w-10" />}
+          title="No schedule set"
+          description="Set this therapist's working days and hours to start booking them."
+        />
+      </Card>
+    )
+  }
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">

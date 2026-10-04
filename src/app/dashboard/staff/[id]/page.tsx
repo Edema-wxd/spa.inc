@@ -1,5 +1,6 @@
 import Link from "next/link"
-import { ArrowLeft, Mail, Phone } from "lucide-react"
+import { ArrowLeft, Mail, Phone, Users } from "lucide-react"
+import { EmptyState } from "@/components/shared/empty-state"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -212,9 +213,12 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
                   </Table>
                 </div>
               ) : (
-                <p className="py-8 text-center text-muted-foreground">
-                  No clients served yet.
-                </p>
+                <EmptyState
+                  compact
+                  icon={<Users className="h-10 w-10" />}
+                  title="No clients served yet"
+                  description="Clients appear here after this therapist completes their first session."
+                />
               )}
             </CardContent>
           </Card>

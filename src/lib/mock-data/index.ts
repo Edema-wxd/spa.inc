@@ -1,18 +1,10 @@
-export { users } from "./users"
-export { clients } from "./clients"
-export { services } from "./services"
-export { appointments } from "./appointments"
-export { payments } from "./payments"
-export { expenses } from "./expenses"
-export { schedules } from "./schedules"
-
-// Import everything for helpers
-import { users } from "./users"
-import { clients } from "./clients"
-import { services } from "./services"
-import { appointments } from "./appointments"
-import { payments } from "./payments"
-import { expenses } from "./expenses"
+import { users as seedUsers } from "./users"
+import { clients as seedClients } from "./clients"
+import { services as seedServices } from "./services"
+import { appointments as seedAppointments } from "./appointments"
+import { payments as seedPayments } from "./payments"
+import { expenses as seedExpenses } from "./expenses"
+import { schedules as seedSchedules } from "./schedules"
 import {
   startOfDay,
   endOfDay,
@@ -25,9 +17,28 @@ import {
   format,
   isSameDay,
   parseISO,
-  addDays,
   eachDayOfInterval,
 } from "date-fns"
+
+// ---------------------------------------------------------------------------
+// Demo data
+//
+// Set NEXT_PUBLIC_DEMO_EMPTY=true to start with no data at all (and none of
+// the hardcoded fallbacks below), which is how the empty states are tested.
+// ---------------------------------------------------------------------------
+
+export const DEMO_EMPTY = process.env.NEXT_PUBLIC_DEMO_EMPTY === "true"
+
+/** Fallback demo numbers apply only when the dataset has data at all. */
+const useFallbacks = !DEMO_EMPTY
+
+export const users = DEMO_EMPTY ? [] : seedUsers
+export const clients = DEMO_EMPTY ? [] : seedClients
+export const services = DEMO_EMPTY ? [] : seedServices
+export const appointments = DEMO_EMPTY ? [] : seedAppointments
+export const payments = DEMO_EMPTY ? [] : seedPayments
+export const expenses = DEMO_EMPTY ? [] : seedExpenses
+export const schedules = DEMO_EMPTY ? [] : seedSchedules
 
 // ---------------------------------------------------------------------------
 // Lookup helpers
@@ -66,7 +77,7 @@ export function getTodaysRevenue(): number {
     .reduce((sum, p) => sum + p.amount, 0)
 
   // Fallback for demo if no payments land on "today"
-  return total > 0 ? total : 284700
+  return total > 0 || !useFallbacks ? total : 284700
 }
 
 export function getMonthlyRevenue(): number {
@@ -84,7 +95,7 @@ export function getMonthlyRevenue(): number {
     )
     .reduce((sum, p) => sum + p.amount, 0)
 
-  return total > 0 ? total : 1847500
+  return total > 0 || !useFallbacks ? total : 1847500
 }
 
 export function getActiveClientCount(): number {
@@ -99,7 +110,7 @@ export function getTodaysAppointments() {
   )
 
   // If no appointments on today, return the next day that has appointments
-  if (todayApts.length === 0) {
+  if (todayApts.length === 0 && useFallbacks) {
     // Find the nearest future appointments for demo purposes
     const futureApts = appointments
       .filter((a) => a.status === "SCHEDULED")
@@ -137,7 +148,7 @@ export function getDailyCosts(): number {
 
   const totalRecent = recentExpenses.reduce((sum, e) => sum + e.amount, 0)
   const avg = Math.round(totalRecent / 30)
-  return avg > 0 ? avg : 142300
+  return avg > 0 || !useFallbacks ? avg : 142300
 }
 
 // ---------------------------------------------------------------------------
@@ -176,7 +187,7 @@ export function getRevenueVsExpenses(days: number) {
 
   // If all zeros, generate demo fallback data
   const hasData = result.some((r) => r.revenue > 0 || r.expenses > 0)
-  if (!hasData) {
+  if (!hasData && useFallbacks) {
     return result.map((r, i) => ({
       ...r,
       revenue: 150000 + ((i * 17 + 3) % 15) * 20000,
@@ -214,7 +225,7 @@ export function getTopEarners(count: number) {
     .slice(0, count)
 
   // Fallback if empty
-  if (sorted.length === 0) {
+  if (sorted.length === 0 && useFallbacks) {
     const activeStaff = users.filter(
       (u) => u.role === "STAFF" && u.is_active
     )
@@ -252,7 +263,7 @@ export function getClientVisitsThisWeek() {
 
   // Fallback if all zeros
   const hasData = result.some((r) => r.visits > 0)
-  if (!hasData) {
+  if (!hasData && useFallbacks) {
     const fallbackVisits = [12, 15, 11, 18, 14, 8, 3]
     return result.map((r, i) => ({
       ...r,
@@ -309,7 +320,7 @@ export function getRevenueByService() {
     .sort((a, b) => b.revenue - a.revenue)
 
   // Fallback
-  if (result.length === 0) {
+  if (result.length === 0 && useFallbacks) {
     return services.map((s, i) => ({
       name: s.name,
       revenue: 250000 - i * 20000,
@@ -334,7 +345,7 @@ export function getRevenueByStaff() {
     .map(([name, revenue]) => ({ name, revenue }))
     .sort((a, b) => b.revenue - a.revenue)
 
-  if (result.length === 0) {
+  if (result.length === 0 && useFallbacks) {
     const activeStaff = users.filter(
       (u) => u.role === "STAFF" && u.is_active
     )
@@ -361,7 +372,7 @@ export function getRevenueByMethod() {
     .map(([method, revenue]) => ({ method, revenue }))
     .sort((a, b) => b.revenue - a.revenue)
 
-  if (result.length === 0) {
+  if (result.length === 0 && useFallbacks) {
     return [
       { method: "CARD", revenue: 850000 },
       { method: "CASH", revenue: 420000 },
@@ -404,7 +415,7 @@ export function getMonthlyRevenueTrend(months: number) {
 
   // Fallback
   const hasData = result.some((r) => r.revenue > 0)
-  if (!hasData) {
+  if (!hasData && useFallbacks) {
     return result.map((r, i) => ({
       ...r,
       revenue: 1200000 + ((i * 13 + 5) % 8) * 150000,
@@ -425,7 +436,7 @@ export function getExpensesByCategory() {
     .map(([category, total]) => ({ category, total }))
     .sort((a, b) => b.total - a.total)
 
-  if (result.length === 0) {
+  if (result.length === 0 && useFallbacks) {
     return [
       { category: "PAYROLL", total: 2800000 },
       { category: "RENT", total: 1050000 },
@@ -532,7 +543,7 @@ export function getPnLData(months: number) {
 
   // Fallback
   const hasData = result.some((r) => r.revenue > 0 || r.expenses > 0)
-  if (!hasData) {
+  if (!hasData && useFallbacks) {
     return result.map((r, i) => {
       const rev = 1200000 + ((i * 13 + 5) % 8) * 150000
       const exp = 800000 + ((i * 7 + 3) % 6) * 100000

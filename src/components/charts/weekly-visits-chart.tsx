@@ -37,7 +37,12 @@ function CustomTooltip({
 
 export function WeeklyVisitsChart() {
   return (
-    <ChartWrapper title="Client Visits This Week">
+    <ChartWrapper
+      title="Client Visits This Week"
+      isEmpty={data.every((d) => d.visits === 0)}
+      emptyTitle="No visits this week"
+      emptyDescription="Booked and completed appointments for this week will show here."
+    >
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />

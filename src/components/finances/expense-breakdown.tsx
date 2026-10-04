@@ -9,6 +9,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Receipt } from "lucide-react"
+import { EmptyState } from "@/components/shared/empty-state"
 import { getExpensesByCategory } from "@/lib/mock-data"
 import { formatCurrency } from "@/lib/utils"
 
@@ -32,53 +34,62 @@ export function ExpenseBreakdown() {
         <CardTitle>Expense Breakdown by Category</CardTitle>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Category</TableHead>
-              <TableHead className="text-right">Total Amount</TableHead>
-              <TableHead className="text-right">% of Total</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.map((item) => {
-              const percentage =
-                grandTotal > 0
-                  ? ((item.total / grandTotal) * 100).toFixed(1)
-                  : "0.0"
-              const dotColor =
-                categoryDotColor[item.category] || categoryDotColor.OTHER
+        {data.length === 0 ? (
+          <EmptyState
+            compact
+            icon={<Receipt className="h-10 w-10" />}
+            title="No expenses recorded"
+            description="Add your first expense to see where your money goes by category."
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Category</TableHead>
+                <TableHead className="text-right">Total Amount</TableHead>
+                <TableHead className="text-right">% of Total</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.map((item) => {
+                const percentage =
+                  grandTotal > 0
+                    ? ((item.total / grandTotal) * 100).toFixed(1)
+                    : "0.0"
+                const dotColor =
+                  categoryDotColor[item.category] || categoryDotColor.OTHER
 
-              return (
-                <TableRow key={item.category}>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`inline-block h-2.5 w-2.5 rounded-full ${dotColor}`}
-                      />
-                      <span className="text-sm font-medium">
-                        {item.category}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">
-                    {formatCurrency(item.total)}
-                  </TableCell>
-                  <TableCell className="text-right text-sm text-muted-foreground">
-                    {percentage}%
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-            <TableRow className="border-t-2">
-              <TableCell className="font-bold">Total</TableCell>
-              <TableCell className="text-right font-bold tabular-nums">
-                {formatCurrency(grandTotal)}
-              </TableCell>
-              <TableCell className="text-right font-bold">100%</TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
+                return (
+                  <TableRow key={item.category}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-block h-2.5 w-2.5 rounded-full ${dotColor}`}
+                        />
+                        <span className="text-sm font-medium">
+                          {item.category}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {formatCurrency(item.total)}
+                    </TableCell>
+                    <TableCell className="text-right text-sm text-muted-foreground">
+                      {percentage}%
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+              <TableRow className="border-t-2">
+                <TableCell className="font-bold">Total</TableCell>
+                <TableCell className="text-right font-bold tabular-nums">
+                  {formatCurrency(grandTotal)}
+                </TableCell>
+                <TableCell className="text-right font-bold">100%</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        )}
       </CardContent>
     </Card>
   )

@@ -39,7 +39,12 @@ function CustomTooltip({
 
 export function RevenueByServiceChart() {
   return (
-    <ChartWrapper title="Revenue by Service Type">
+    <ChartWrapper
+      title="Revenue by Service Type"
+      isEmpty={data.length === 0}
+      emptyTitle="No service revenue yet"
+      emptyDescription="Revenue by service appears once payments are linked to appointments."
+    >
       <ResponsiveContainer width="100%" height={Math.max(300, data.length * 50)}>
         <BarChart data={data} layout="vertical">
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />

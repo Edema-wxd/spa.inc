@@ -42,7 +42,13 @@ function CustomTooltip({
 
 export function RevenueExpensesChart() {
   return (
-    <ChartWrapper title="Revenue vs Expenses">
+    <ChartWrapper
+      title="Revenue vs Expenses"
+      isEmpty={data.every((d) => d.revenue === 0 && d.expenses === 0)}
+      emptyTitle="No activity in the last 30 days"
+      emptyDescription="Revenue and expenses you record will be charted here."
+      emptyAction={{ label: "Record Payment", href: "/dashboard/payments/new" }}
+    >
       <ResponsiveContainer width="100%" height={300}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />

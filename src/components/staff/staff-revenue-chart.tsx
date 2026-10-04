@@ -10,7 +10,7 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { ChartWrapper } from "@/components/shared/chart-wrapper"
-import { payments } from "@/lib/mock-data"
+import { DEMO_EMPTY, payments } from "@/lib/mock-data"
 import { REVENUE_COLOR } from "@/lib/chart-colors"
 import { formatCurrency } from "@/lib/utils"
 import {
@@ -55,7 +55,7 @@ function getWeeklyRevenue(staffId: string) {
 
   // If all zeros, generate fallback data
   const hasData = data.some((d) => d.revenue > 0)
-  if (!hasData) {
+  if (!hasData && !DEMO_EMPTY) {
     return data.map((d, i) => ({
       ...d,
       revenue: 25000 + ((i * 17 + 3) % 10) * 8000,
@@ -69,7 +69,13 @@ export function StaffRevenueChart({ staffId }: StaffRevenueChartProps) {
   const data = getWeeklyRevenue(staffId)
 
   return (
-    <ChartWrapper title="Revenue Trend" description="Weekly revenue over the last 12 weeks">
+    <ChartWrapper
+      title="Revenue Trend"
+      description="Weekly revenue over the last 12 weeks"
+      isEmpty={data.every((d) => d.revenue === 0)}
+      emptyTitle="No revenue yet"
+      emptyDescription="Payments recorded for this therapist will be charted here."
+    >
       <ResponsiveContainer width="100%" height={300}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />

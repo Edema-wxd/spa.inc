@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getStaffLeaderboard } from "@/lib/mock-data"
 import { formatCurrency } from "@/lib/utils"
 import { Star, Trophy } from "lucide-react"
+import { EmptyState } from "@/components/shared/empty-state"
 import { cn } from "@/lib/utils"
 
 const leaderboard = getStaffLeaderboard()
@@ -78,52 +79,62 @@ export function LeaderboardTable() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-16">#</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead className="text-right">Total Revenue</TableHead>
-              <TableHead className="text-right">Sessions</TableHead>
-              <TableHead className="text-right">Avg/Session</TableHead>
-              <TableHead>Satisfaction</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {leaderboard.map((staff, index) => {
-              const avgPerSession =
-                staff.completedAppointments > 0
-                  ? staff.totalRevenue / staff.completedAppointments
-                  : 0
+        {leaderboard.length === 0 ? (
+          <EmptyState
+            compact
+            icon={<Trophy className="h-10 w-10" />}
+            title="No rankings yet"
+            description="Add active therapists and record sessions to see who leads the board."
+            action={{ label: "Go to Staff", href: "/dashboard/staff" }}
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-16">#</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead className="text-right">Total Revenue</TableHead>
+                <TableHead className="text-right">Sessions</TableHead>
+                <TableHead className="text-right">Avg/Session</TableHead>
+                <TableHead>Satisfaction</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {leaderboard.map((staff, index) => {
+                const avgPerSession =
+                  staff.completedAppointments > 0
+                    ? staff.totalRevenue / staff.completedAppointments
+                    : 0
 
-              return (
-                <TableRow
-                  key={staff.staffId}
-                  className={cn(
-                    index < 3 && "bg-muted/30"
-                  )}
-                >
-                  <TableCell>
-                    <RankBadge rank={index + 1} />
-                  </TableCell>
-                  <TableCell className="font-medium">{staff.name}</TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(staff.totalRevenue)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {staff.completedAppointments}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(Math.round(avgPerSession))}
-                  </TableCell>
-                  <TableCell>
-                    <StarRating rating={staff.averageRating} />
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
+                return (
+                  <TableRow
+                    key={staff.staffId}
+                    className={cn(
+                      index < 3 && "bg-muted/30"
+                    )}
+                  >
+                    <TableCell>
+                      <RankBadge rank={index + 1} />
+                    </TableCell>
+                    <TableCell className="font-medium">{staff.name}</TableCell>
+                    <TableCell className="text-right">
+                      {formatCurrency(staff.totalRevenue)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {staff.completedAppointments}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatCurrency(Math.round(avgPerSession))}
+                    </TableCell>
+                    <TableCell>
+                      <StarRating rating={staff.averageRating} />
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        )}
       </CardContent>
     </Card>
   )

@@ -68,7 +68,12 @@ function renderCustomizedLabel(props: PieLabelRenderProps) {
 
 export function ServiceDistributionChart() {
   return (
-    <ChartWrapper title="Revenue by Service">
+    <ChartWrapper
+      title="Revenue by Service"
+      isEmpty={data.length === 0}
+      emptyTitle="No service revenue yet"
+      emptyDescription="Revenue by service appears once payments are linked to appointments."
+    >
       <ResponsiveContainer width="100%" height={350}>
         <PieChart>
           <Pie

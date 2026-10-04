@@ -42,7 +42,12 @@ function CustomTooltip({
 
 export function PnLChart() {
   return (
-    <ChartWrapper title="Profit & Loss">
+    <ChartWrapper
+      title="Profit & Loss"
+      isEmpty={data.every((d) => d.revenue === 0 && d.expenses === 0)}
+      emptyTitle="No financial data yet"
+      emptyDescription="Record payments and expenses to see profit and loss by month."
+    >
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />

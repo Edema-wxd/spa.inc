@@ -1,14 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { use, useState } from "react"
+import Link from "next/link"
 import { toast } from "sonner"
-import { UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { PlanSettings } from "@/components/settings/plan-settings"
+import { TeamSettings } from "@/components/settings/team-settings"
+import { usePlan } from "@/components/plan/plan-provider"
+import { PLAN_NAMES, minimumPlanFor } from "@/lib/plans"
 import {
   Card,
   CardContent,
@@ -22,18 +26,15 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { users } from "@/lib/mock-data"
 import { getInitials, cn } from "@/lib/utils"
 
-const adminUser = users.find((u) => u.id === "admin-001")!
+// Signed-in admin (demo); blank profile when the demo has no data
+const adminUser = users.find((u) => u.id === "admin-001") ?? {
+  full_name: "",
+  email: "",
+  phone: "",
+}
 
 const operatingHours = [
   { day: "Monday", hours: "9:00 AM - 7:00 PM" },
@@ -45,12 +46,18 @@ const operatingHours = [
   { day: "Sunday", hours: "Closed" },
 ]
 
-const roleColorMap: Record<string, string> = {
-  ADMIN: "bg-purple-100 text-purple-700 hover:bg-purple-100",
-  STAFF: "bg-blue-100 text-blue-700 hover:bg-blue-100",
-}
+const TABS = ["account", "business", "notifications", "team", "plan"] as const
 
-export default function SettingsPage() {
+export default function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>
+}) {
+  const { tab } = use(searchParams)
+  const defaultTab = TABS.find((t) => t === tab) ?? "account"
+  const { hasFeature } = usePlan()
+  const canEmailConfirm = hasFeature("emailConfirmations")
+
   // Account tab state
   const [fullName, setFullName] = useState(adminUser.full_name)
   const [email, setEmail] = useState(adminUser.email)
@@ -69,6 +76,7 @@ export default function SettingsPage() {
   const [smsAlerts, setSmsAlerts] = useState(true)
   const [appointmentReminders, setAppointmentReminders] = useState(true)
   const [paymentConfirmations, setPaymentConfirmations] = useState(true)
+  const [emailConfirmations, setEmailConfirmations] = useState(true)
   const [dailyReports, setDailyReports] = useState(true)
 
   function handleSaveAccount() {
@@ -95,12 +103,13 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="account" className="space-y-6">
+      <Tabs defaultValue={defaultTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="account">Account</TabsTrigger>
           <TabsTrigger value="business">Business</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="team">Team</TabsTrigger>
+          <TabsTrigger value="plan">Plan &amp; Billing</TabsTrigger>
         </TabsList>
 
         {/* Account Tab */}
@@ -278,6 +287,15 @@ export default function SettingsPage() {
                   onChange: setAppointmentReminders,
                 },
                 {
+                  id: "emailConfirmations",
+                  label: "Appointment Email Confirmations",
+                  description:
+                    "Email clients automatically when an appointment is booked",
+                  checked: canEmailConfirm && emailConfirmations,
+                  onChange: setEmailConfirmations,
+                  lockedTo: canEmailConfirm ? undefined : minimumPlanFor("emailConfirmations"),
+                },
+                {
                   id: "paymentConfirmations",
                   label: "Payment Confirmations",
                   description:
@@ -301,6 +319,13 @@ export default function SettingsPage() {
                   <div className="space-y-0.5">
                     <Label htmlFor={item.id} className="cursor-pointer text-sm font-medium">
                       {item.label}
+                      {"lockedTo" in item && item.lockedTo && (
+                        <Link href="?tab=plan">
+                          <Badge variant="outline" className="ml-2 text-spa-accent">
+                            {PLAN_NAMES[item.lockedTo]} plan
+                          </Badge>
+                        </Link>
+                      )}
                     </Label>
                     <p className="text-xs text-muted-foreground">
                       {item.description}
@@ -310,6 +335,7 @@ export default function SettingsPage() {
                     id={item.id}
                     checked={item.checked}
                     onCheckedChange={item.onChange}
+                    disabled={"lockedTo" in item && !!item.lockedTo}
                   />
                 </div>
               ))}
@@ -319,80 +345,12 @@ export default function SettingsPage() {
 
         {/* Team Tab */}
         <TabsContent value="team">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Team Members</CardTitle>
-                <CardDescription>
-                  Manage your team and their access levels.
-                </CardDescription>
-              </div>
-              <Button
-                size="sm"
-                onClick={() => toast.info("Coming soon")}
-              >
-                <UserPlus className="h-4 w-4" />
-                Invite Member
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback className="bg-spa-light text-spa-accent text-xs">
-                              {getInitials(user.full_name)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-sm font-medium">
-                            {user.full_name}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {user.email}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="secondary"
-                          className={cn(
-                            roleColorMap[user.role] || "bg-gray-100 text-gray-600",
-                            "font-medium"
-                          )}
-                        >
-                          {user.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="secondary"
-                          className={cn(
-                            user.is_active
-                              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
-                              : "bg-gray-100 text-gray-600 hover:bg-gray-100",
-                            "font-medium"
-                          )}
-                        >
-                          {user.is_active ? "ACTIVE" : "INACTIVE"}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <TeamSettings />
+        </TabsContent>
+
+        {/* Plan Tab */}
+        <TabsContent value="plan">
+          <PlanSettings />
         </TabsContent>
       </Tabs>
     </div>

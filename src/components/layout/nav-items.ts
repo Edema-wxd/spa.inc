@@ -11,11 +11,14 @@ import {
   Settings,
   type LucideIcon,
 } from "lucide-react"
+import type { Feature } from "@/lib/plans"
 
 export interface NavItem {
   label: string
   href: string
   icon: LucideIcon
+  /** Plan feature required to use the page; shown with a lock when missing */
+  feature?: Feature
 }
 
 export interface NavSection {
@@ -34,7 +37,7 @@ export const navSections: NavSection[] = [
     title: "MANAGEMENT",
     items: [
       { label: "Clients", href: "/dashboard/clients", icon: Users },
-      { label: "Staff", href: "/dashboard/staff", icon: UserCog },
+      { label: "Staff", href: "/dashboard/staff", icon: UserCog, feature: "staffManagement" },
       { label: "Payments", href: "/dashboard/payments", icon: CreditCard },
     ],
   },
@@ -46,22 +49,25 @@ export const navSections: NavSection[] = [
         label: "Revenue",
         href: "/dashboard/analytics/revenue",
         icon: TrendingUp,
+        feature: "revenueAnalytics",
       },
       {
         label: "Performance",
         href: "/dashboard/analytics/performance",
         icon: Trophy,
+        feature: "performanceLeaderboard",
       },
     ],
   },
   {
     title: "FINANCE",
     items: [
-      { label: "Expenses", href: "/dashboard/finances", icon: Receipt },
+      { label: "Expenses", href: "/dashboard/finances", icon: Receipt, feature: "expenseTracking" },
       {
         label: "Profit & Loss",
         href: "/dashboard/finances/pnl",
         icon: PieChart,
+        feature: "profitAndLoss",
       },
     ],
   },

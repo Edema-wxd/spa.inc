@@ -1,4 +1,5 @@
-import { Clock, User, Scissors } from "lucide-react"
+import { CalendarX, Clock, User, Scissors } from "lucide-react"
+import { EmptyState } from "@/components/shared/empty-state"
 import {
   Card,
   CardContent,
@@ -20,9 +21,12 @@ export function UpcomingAppointments() {
           <CardTitle>Upcoming Appointments</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            No upcoming appointments
-          </p>
+          <EmptyState
+            compact
+            icon={<CalendarX className="h-10 w-10" />}
+            title="No upcoming appointments"
+            description="Scheduled appointments will appear here so you can plan the day ahead."
+          />
         </CardContent>
       </Card>
     )

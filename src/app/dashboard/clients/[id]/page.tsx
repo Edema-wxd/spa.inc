@@ -1,8 +1,6 @@
-"use client"
-
-import { use } from "react"
 import Link from "next/link"
-import { getClientById } from "@/lib/mock-data"
+import { getRequestContext } from "@/server/context"
+import { getRepositories } from "@/server/repositories"
 import { formatDate, formatPhone } from "@/lib/utils"
 import { VisitHistory } from "@/components/clients/visit-history"
 import { ClientStats } from "@/components/clients/client-stats"
@@ -16,13 +14,14 @@ import {
 } from "@/components/ui/card"
 import { ArrowLeft, Mail, Phone, MapPin, Calendar, FileText } from "lucide-react"
 
-export default function ClientDetailPage({
+export default async function ClientDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
-  const { id } = use(params)
-  const client = getClientById(id)
+  const { id } = await params
+  const ctx = await getRequestContext()
+  const client = await (await getRepositories()).clients.get(ctx.organizationId, id)
 
   if (!client) {
     return (
