@@ -77,7 +77,13 @@ function renderCustomizedLabel(props: PieLabelRenderProps) {
 
 export function RevenueByMethodChart() {
   return (
-    <ChartWrapper title="Revenue by Payment Method">
+    <ChartWrapper
+      title="Revenue by Payment Method"
+      isEmpty={total === 0}
+      emptyTitle="No payments yet"
+      emptyDescription="See how clients pay once you record payments."
+      emptyAction={{ label: "Record Payment", href: "/dashboard/payments/new" }}
+    >
       <ResponsiveContainer width="100%" height={350}>
         <PieChart>
           <Pie

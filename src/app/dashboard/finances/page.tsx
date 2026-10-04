@@ -5,6 +5,7 @@ import { Receipt, TrendingDown, FolderOpen, RefreshCw, Plus } from "lucide-react
 import { Button } from "@/components/ui/button"
 import { SummaryCard } from "@/components/shared/summary-card"
 import { DataTable } from "@/components/shared/data-table"
+import { EmptyState } from "@/components/shared/empty-state"
 import {
   expenseColumns,
   type EnrichedExpense,
@@ -114,6 +115,13 @@ export default function FinancesPage() {
         data={enrichedExpenses}
         searchKey="description"
         searchPlaceholder="Search by description..."
+        emptyState={
+          <EmptyState
+            icon={<Receipt className="h-12 w-12" />}
+            title="No expenses yet"
+            description="Use Add Expense to log rent, supplies, payroll and other costs."
+          />
+        }
       />
 
       {/* Add Expense Dialog */}

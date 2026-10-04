@@ -21,7 +21,7 @@ import {
   PLAN_LIMITS,
   PLAN_NAMES,
   TIER_IDS,
-  formatLimit,
+  formatLimitCount,
   type LimitedResource,
   type TierId,
 } from "@/lib/plans"
@@ -96,9 +96,9 @@ export function PlanSettings() {
                   <p className="text-xs text-muted-foreground">{details.audience}</p>
                 </div>
                 <ul className="space-y-1 text-sm text-muted-foreground">
-                  <li>{formatLimit(PLAN_LIMITS[tier].clients)} clients</li>
-                  <li>{formatLimit(PLAN_LIMITS[tier].admins)} admin accounts</li>
-                  <li>{formatLimit(PLAN_LIMITS[tier].locations)} location(s)</li>
+                  {RESOURCES.map((r) => (
+                    <li key={r}>{formatLimitCount(r, PLAN_LIMITS[tier][r])}</li>
+                  ))}
                 </ul>
                 {overLimit.length > 0 && !isCurrent && (
                   <p className="text-xs text-amber-700">

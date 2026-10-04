@@ -63,7 +63,13 @@ export function DailyPnLChart() {
   const hasNegative = minProfit < 0
 
   return (
-    <ChartWrapper title="Daily Profit Trend" description="Cumulative P&L over the last 30 days">
+    <ChartWrapper
+      title="Daily Profit Trend"
+      description="Cumulative P&L over the last 30 days"
+      isEmpty={data.every((d) => d.profit === 0)}
+      emptyTitle="No profit data yet"
+      emptyDescription="Record payments and expenses to see your daily profit trend."
+    >
       <ResponsiveContainer width="100%" height={300}>
         <AreaChart data={data}>
           <defs>

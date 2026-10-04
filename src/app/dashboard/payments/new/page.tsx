@@ -1,9 +1,11 @@
 import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Users } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { PaymentForm } from "@/components/payments/payment-form"
+import { EmptyState } from "@/components/shared/empty-state"
+import { clients } from "@/lib/mock-data"
 
 export default function NewPaymentPage() {
   return (
@@ -21,7 +23,16 @@ export default function NewPaymentPage() {
       </div>
       <Card>
         <CardContent>
-          <PaymentForm />
+          {clients.length === 0 ? (
+            <EmptyState
+              icon={<Users className="h-12 w-12" />}
+              title="Add a client first"
+              description="Payments are recorded against a client. Add your first client to get started."
+              action={{ label: "Add Client", href: "/dashboard/clients/new" }}
+            />
+          ) : (
+            <PaymentForm />
+          )}
         </CardContent>
       </Card>
     </div>

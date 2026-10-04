@@ -54,6 +54,11 @@ const RESOURCE_NOUNS: Record<LimitedResource, [singular: string, plural: string]
   locations: ["location", "locations"],
 }
 
+/** "1 admin account", "50 clients", "Unlimited locations" */
+export function formatLimitCount(resource: LimitedResource, limit: number | null): string {
+  return limit === null ? `Unlimited ${RESOURCE_NOUNS[resource][1]}` : formatCount(resource, limit)
+}
+
 /** "1 admin account", "50 clients" */
 export function formatCount(resource: LimitedResource, count: number): string {
   const [singular, plural] = RESOURCE_NOUNS[resource]

@@ -51,7 +51,12 @@ function CustomTooltip({
 
 export function PerformanceComparisonChart() {
   return (
-    <ChartWrapper title="Staff Performance Comparison">
+    <ChartWrapper
+      title="Staff Performance Comparison"
+      isEmpty={data.length === 0}
+      emptyTitle="No staff to compare"
+      emptyDescription="Add therapists and record sessions to compare their performance."
+    >
       <ResponsiveContainer width="100%" height={350}>
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />

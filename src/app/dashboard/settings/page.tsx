@@ -29,7 +29,12 @@ import {
 import { users } from "@/lib/mock-data"
 import { getInitials, cn } from "@/lib/utils"
 
-const adminUser = users.find((u) => u.id === "admin-001")!
+// Signed-in admin (demo); blank profile when the demo has no data
+const adminUser = users.find((u) => u.id === "admin-001") ?? {
+  full_name: "",
+  email: "",
+  phone: "",
+}
 
 const operatingHours = [
   { day: "Monday", hours: "9:00 AM - 7:00 PM" },

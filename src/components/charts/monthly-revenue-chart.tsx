@@ -39,7 +39,13 @@ function CustomTooltip({
 
 export function MonthlyRevenueChart() {
   return (
-    <ChartWrapper title="Monthly Revenue Trend">
+    <ChartWrapper
+      title="Monthly Revenue Trend"
+      isEmpty={data.every((d) => d.revenue === 0)}
+      emptyTitle="No revenue yet"
+      emptyDescription="Monthly revenue appears here once payments are recorded."
+      emptyAction={{ label: "Record Payment", href: "/dashboard/payments/new" }}
+    >
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />

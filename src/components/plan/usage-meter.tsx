@@ -10,13 +10,19 @@ interface UsageMeterProps {
 
 export function UsageMeter({ resource, used, limit, className }: UsageMeterProps) {
   const pct = limit === null ? 0 : Math.min(100, Math.round((used / limit) * 100))
-  const atLimit = limit !== null && used >= limit
+  const overLimit = limit !== null && used > limit
+  const atLimit = limit !== null && used === limit
 
   return (
     <div className={cn("space-y-1.5", className)}>
       <div className="flex items-baseline justify-between text-sm">
         <span className="font-medium">{RESOURCE_LABELS[resource]}</span>
-        <span className={cn("tabular-nums", atLimit ? "text-destructive" : "text-muted-foreground")}>
+        <span
+          className={cn(
+            "tabular-nums",
+            overLimit ? "text-destructive" : atLimit ? "text-amber-700" : "text-muted-foreground"
+          )}
+        >
           {used.toLocaleString("en-US")} / {formatLimit(limit)}
         </span>
       </div>
@@ -24,7 +30,13 @@ export function UsageMeter({ resource, used, limit, className }: UsageMeterProps
         <div
           className={cn(
             "h-full rounded-full transition-all",
-            limit === null ? "w-full bg-emerald-500/40" : atLimit ? "bg-destructive" : "bg-spa-accent"
+            limit === null
+              ? "w-full bg-emerald-500/40"
+              : overLimit
+                ? "bg-destructive"
+                : atLimit
+                  ? "bg-amber-500"
+                  : "bg-spa-accent"
           )}
           style={limit === null ? undefined : { width: `${pct}%` }}
         />
