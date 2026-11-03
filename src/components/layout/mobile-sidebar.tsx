@@ -1,9 +1,10 @@
 "use client"
 
+import { ROLE_LABELS, useSessionUser } from "@/components/layout/session-user"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Sparkles, Lock } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, getInitials } from "@/lib/utils"
 import { usePlan } from "@/components/plan/plan-provider"
 import { navSections } from "./nav-items"
 import { Badge } from "@/components/ui/badge"
@@ -22,6 +23,7 @@ interface MobileSidebarProps {
 }
 
 export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
+  const user = useSessionUser()
   const pathname = usePathname()
   const { hasFeature } = usePlan()
 
@@ -106,18 +108,18 @@ export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
           <div className="flex items-center gap-3">
             <Avatar size="default">
               <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs">
-                RT
+                {getInitials(user.full_name)}
               </AvatarFallback>
             </Avatar>
             <div className="flex flex-col">
               <span className="text-sm font-medium text-sidebar-primary-foreground">
-                Rebecca Torres
+                {user.full_name}
               </span>
               <Badge
                 variant="secondary"
                 className="mt-0.5 w-fit bg-sidebar-accent text-[10px] text-sidebar-accent-foreground"
               >
-                Admin
+                {ROLE_LABELS[user.role]}
               </Badge>
             </div>
           </div>

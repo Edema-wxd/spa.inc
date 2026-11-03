@@ -1,33 +1,23 @@
 import { PageHeader } from "@/components/shared/page-header"
-import { UserCog } from "lucide-react"
-import { DataTable } from "@/components/shared/data-table"
-import { EmptyState } from "@/components/shared/empty-state"
-import { staffColumns } from "@/components/staff/staff-columns"
-import { users } from "@/lib/mock-data"
+import { StaffTable } from "@/components/staff/staff-table"
+import { hasFeature } from "@/lib/plans"
+import { getRequestContext } from "@/server/context"
+import { listStaffRows } from "@/server/services/users"
 
-export default function StaffPage() {
-  const staffUsers = users.filter((u) => u.role === "STAFF")
+export default async function StaffPage() {
+  const ctx = await getRequestContext()
+  // The segment layout shows the upgrade prompt on lower plans
+  if (!hasFeature(ctx.plan, "staffManagement")) return null
+  const staff = await listStaffRows(ctx)
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Staff"
-        description="Manage your massage therapists"
+        description="Your therapists, their sessions and lifetime revenue"
+        action={{ label: "Open calendar", href: "/dashboard/calendar" }}
       />
-      <DataTable
-        columns={staffColumns}
-        data={staffUsers}
-        searchKey="full_name"
-        searchPlaceholder="Search staff..."
-        emptyState={
-          <EmptyState
-            icon={<UserCog className="h-12 w-12" />}
-            title="No therapists yet"
-            description="Invite your therapists from Settings to manage their schedules and earnings."
-            action={{ label: "Invite Team Members", href: "/dashboard/settings?tab=team" }}
-          />
-        }
-      />
+      <StaffTable staff={staff} />
     </div>
   )
 }

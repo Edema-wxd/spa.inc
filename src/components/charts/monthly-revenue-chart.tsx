@@ -10,11 +10,9 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { ChartWrapper } from "@/components/shared/chart-wrapper"
-import { getMonthlyRevenueTrend } from "@/lib/mock-data"
 import { REVENUE_COLOR } from "@/lib/chart-colors"
-import { formatCurrency } from "@/lib/utils"
-
-const data = getMonthlyRevenueTrend(12)
+import { formatCurrency, formatCurrencyAxis } from "@/lib/utils"
+import { formatMonth } from "@/lib/time"
 
 function CustomTooltip({
   active,
@@ -29,7 +27,7 @@ function CustomTooltip({
 
   return (
     <div className="rounded-lg border bg-card p-3 shadow-md">
-      <p className="mb-1 text-sm font-medium">{label}</p>
+      <p className="mb-1 text-sm font-medium">{label ? formatMonth(label, "long") : ""}</p>
       <p className="text-sm" style={{ color: REVENUE_COLOR }}>
         Revenue: {formatCurrency(payload[0].value)}
       </p>
@@ -37,10 +35,11 @@ function CustomTooltip({
   )
 }
 
-export function MonthlyRevenueChart() {
+export function MonthlyRevenueChart({ data }: { data: { month: string; revenue: number }[] }) {
   return (
     <ChartWrapper
       title="Monthly Revenue Trend"
+      description="Last 12 months, current month to date"
       isEmpty={data.every((d) => d.revenue === 0)}
       emptyTitle="No revenue yet"
       emptyDescription="Monthly revenue appears here once payments are recorded."
@@ -51,6 +50,8 @@ export function MonthlyRevenueChart() {
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis
             dataKey="month"
+            interval={0}
+            tickFormatter={(month: string) => formatMonth(month, "short")}
             tick={{ fontSize: 12 }}
             tickLine={false}
             axisLine={false}
@@ -59,9 +60,7 @@ export function MonthlyRevenueChart() {
             tick={{ fontSize: 12 }}
             tickLine={false}
             axisLine={false}
-            tickFormatter={(value: number) =>
-              `$${(value / 100).toLocaleString()}`
-            }
+            tickFormatter={formatCurrencyAxis}
           />
           <Tooltip content={<CustomTooltip />} />
           <Bar

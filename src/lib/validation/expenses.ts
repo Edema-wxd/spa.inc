@@ -18,7 +18,7 @@ export const expenseSchema = z
     description: z.string().trim().min(1, "Description is required"),
     /** Integer cents */
     amount: z.number().int().min(1, "Amount must be greater than 0"),
-    expense_date: z.string().min(1, "Please select a date"),
+    expense_date: z.iso.date("Please select a valid date"),
     is_recurring: z.boolean(),
     recurrence_interval: z.enum(RECURRENCE_INTERVALS).optional(),
   })
@@ -31,7 +31,7 @@ export const expenseUpdateSchema = z.object({
   category: z.enum(EXPENSE_CATEGORIES).optional(),
   description: z.string().trim().min(1).optional(),
   amount: z.number().int().min(1).optional(),
-  expense_date: z.string().min(1).optional(),
+  expense_date: z.iso.date().optional(),
   is_recurring: z.boolean().optional(),
   recurrence_interval: z.enum(RECURRENCE_INTERVALS).nullable().optional(),
 })

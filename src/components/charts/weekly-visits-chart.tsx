@@ -10,9 +10,8 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { ChartWrapper } from "@/components/shared/chart-wrapper"
-import { getClientVisitsThisWeek } from "@/lib/mock-data"
+import { formatDateKey } from "@/lib/time"
 
-const data = getClientVisitsThisWeek()
 
 function CustomTooltip({
   active,
@@ -27,7 +26,9 @@ function CustomTooltip({
 
   return (
     <div className="rounded-lg border bg-card p-3 shadow-md">
-      <p className="mb-1 text-sm font-medium">{label}</p>
+      <p className="mb-1 text-sm font-medium">
+        {label ? formatDateKey(label, { weekday: "long", month: "short", day: "numeric" }) : ""}
+      </p>
       <p className="text-sm text-spa-accent">
         {payload[0].value} visit{payload[0].value !== 1 ? "s" : ""}
       </p>
@@ -35,10 +36,11 @@ function CustomTooltip({
   )
 }
 
-export function WeeklyVisitsChart() {
+export function WeeklyVisitsChart({ data }: { data: { date: string; visits: number }[] }) {
   return (
     <ChartWrapper
       title="Client Visits This Week"
+      description="Completed and booked, Monday to Sunday"
       isEmpty={data.every((d) => d.visits === 0)}
       emptyTitle="No visits this week"
       emptyDescription="Booked and completed appointments for this week will show here."
@@ -47,7 +49,8 @@ export function WeeklyVisitsChart() {
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis
-            dataKey="day"
+            dataKey="date"
+            tickFormatter={(key: string) => formatDateKey(key, { weekday: "short" })}
             tick={{ fontSize: 12 }}
             tickLine={false}
             axisLine={false}

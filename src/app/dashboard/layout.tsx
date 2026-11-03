@@ -1,14 +1,24 @@
 import { DashboardShell } from "@/components/layout/dashboard-shell"
 import { PlanProvider } from "@/components/plan/plan-provider"
 import { getRequestContext } from "@/server/context"
+import { SessionUserProvider } from "@/components/layout/session-user"
+import { getRepositories } from "@/server/repositories"
 import { getPlanUsage } from "@/server/services/plan"
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const usage = await getPlanUsage(await getRequestContext())
+  const ctx = await getRequestContext()
+  const [usage, user] = await Promise.all([
+    getPlanUsage(ctx),
+    getRepositories().then((repos) => repos.users.get(ctx.organizationId, ctx.userId)),
+  ])
 
   return (
     <PlanProvider value={usage}>
-      <DashboardShell>{children}</DashboardShell>
+      <SessionUserProvider
+        value={{ full_name: user?.full_name ?? "Account", email: user?.email ?? "", role: ctx.role }}
+      >
+        <DashboardShell>{children}</DashboardShell>
+      </SessionUserProvider>
     </PlanProvider>
   )
 }

@@ -1,6 +1,8 @@
 "use client"
 
-import { Menu, Bell, Search, LogOut, User, Settings } from "lucide-react"
+import { useSessionUser } from "@/components/layout/session-user"
+import { getInitials } from "@/lib/utils"
+import { Menu, CalendarPlus, Search, LogOut, User, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -22,6 +24,7 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const { planName } = usePlan()
+  const user = useSessionUser()
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b bg-background px-4 md:px-6">
@@ -45,14 +48,16 @@ export function Header({ onMenuClick }: HeaderProps) {
       {/* Right side */}
       <div className="flex items-center gap-2 md:gap-4">
         {/* Search */}
-        <div className="relative hidden md:block">
+        <form action="/dashboard/clients" role="search" className="relative hidden md:block">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search..."
-            className="w-64 pl-9"
-            readOnly
+            name="search"
+            type="search"
+            placeholder="Search clients"
+            aria-label="Find a client"
+            className="w-56 pl-9 lg:w-64"
           />
-        </div>
+        </form>
 
         {/* Current plan */}
         <Link href="/dashboard/settings?tab=plan" title="Plan & Billing">
@@ -61,13 +66,18 @@ export function Header({ onMenuClick }: HeaderProps) {
           </Badge>
         </Link>
 
-        {/* Notification bell */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="size-5" />
-          <Badge className="absolute -right-1 -top-1 flex size-5 items-center justify-center p-0 text-[10px]">
-            3
-          </Badge>
-          <span className="sr-only">Notifications</span>
+        {/* Quick booking */}
+        <Button asChild size="sm" className="hidden sm:inline-flex">
+          <Link href="/dashboard/calendar?book=1">
+            <CalendarPlus className="size-4" />
+            New booking
+          </Link>
+        </Button>
+        <Button asChild variant="ghost" size="icon" className="sm:hidden">
+          <Link href="/dashboard/calendar?book=1">
+            <CalendarPlus className="size-5" />
+            <span className="sr-only">New booking</span>
+          </Link>
         </Button>
 
         {/* User dropdown */}
@@ -76,24 +86,28 @@ export function Header({ onMenuClick }: HeaderProps) {
             <Button variant="ghost" size="icon" className="rounded-full">
               <Avatar size="default">
                 <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                  RT
+                  {getInitials(user.full_name)}
                 </AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             <div className="px-2 py-1.5">
-              <p className="text-sm font-medium">Rebecca Torres</p>
-              <p className="text-xs text-muted-foreground">admin@spa-inc.com</p>
+              <p className="text-sm font-medium">{user.full_name}</p>
+              <p className="text-xs text-muted-foreground">{user.email}</p>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <User className="size-4" />
-              Profile
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard/settings?tab=account">
+                <User className="size-4" />
+                Profile
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Settings className="size-4" />
-              Settings
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard/settings">
+                <Settings className="size-4" />
+                Settings
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive">

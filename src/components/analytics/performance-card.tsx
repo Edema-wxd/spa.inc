@@ -2,25 +2,15 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { formatCurrency, getInitials } from "@/lib/utils"
 import { Star, TrendingUp, Calendar, XCircle } from "lucide-react"
+import type { LeaderboardRow } from "@/server/services/analytics"
 
 interface PerformanceCardProps {
-  staff: {
-    staffId: string
-    name: string
-    totalAppointments: number
-    completedAppointments: number
-    totalRevenue: number
-    averageRating: number
-    cancelRate: number
-  }
+  staff: LeaderboardRow
   rank: number
 }
 
 export function PerformanceCard({ staff, rank }: PerformanceCardProps) {
-  const avgPerSession =
-    staff.completedAppointments > 0
-      ? staff.totalRevenue / staff.completedAppointments
-      : 0
+  const avgPerSession = staff.averageRevenuePerSession
 
   return (
     <Card className="transition-shadow hover:shadow-md">
@@ -69,7 +59,7 @@ export function PerformanceCard({ staff, rank }: PerformanceCardProps) {
             <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
             <div>
               <p className="text-sm font-medium">
-                {staff.averageRating.toFixed(1)}
+                {staff.averageRating !== null ? staff.averageRating.toFixed(1) : "N/A"}
               </p>
               <p className="text-xs text-muted-foreground">Rating</p>
             </div>

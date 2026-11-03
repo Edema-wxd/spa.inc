@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
@@ -25,33 +26,67 @@ import {
 } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
-import { clients, users, services } from "@/lib/mock-data"
 import { formatCurrency } from "@/lib/utils"
 import { apiFetch } from "@/lib/api-client"
 import { paymentSchema, type PaymentInput } from "@/lib/validation/payments"
+import type { PaymentFormData } from "@/server/services/payments"
 
 type PaymentFormValues = PaymentInput
 
-const today = new Date().toISOString().split("T")[0]
+/** Money typed in dollars, stored as integer cents. */
+function DollarInput({
+  value,
+  onChange,
+  onBlur,
+  name,
+}: {
+  value: number
+  onChange: (cents: number) => void
+  onBlur: () => void
+  name: string
+}) {
+  const toText = (cents: number) => (cents ? (cents / 100).toFixed(2) : "")
+  const [text, setText] = useState(toText(value))
+  const [synced, setSynced] = useState(value)
+  // Picking a service sets the amount from outside; reflect it in the box
+  if (value !== synced) {
+    setSynced(value)
+    setText(toText(value))
+  }
+  return (
+    <Input
+      type="number"
+      inputMode="decimal"
+      min="0"
+      step="0.01"
+      placeholder="85.00"
+      name={name}
+      value={text}
+      onBlur={onBlur}
+      onChange={(e) => {
+        const cents = Math.round((Number(e.target.value) || 0) * 100)
+        setText(e.target.value)
+        setSynced(cents)
+        onChange(cents)
+      }}
+    />
+  )
+}
 
-const staffMembers = users.filter(
-  (u) => u.role === "STAFF" && u.is_active
-)
-
-const activeServices = services.filter((s) => s.is_active)
-
-export function PaymentForm() {
+export function PaymentForm({ data }: { data: PaymentFormData }) {
   const router = useRouter()
+  const { clients, staff: staffMembers, services: activeServices, prefill } = data
 
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
-      client_id: "",
-      staff_id: "",
-      service_id: "",
-      amount: 0,
-      payment_method: "CASH",
-      payment_date: today,
+      appointment_id: prefill?.appointment_id,
+      client_id: prefill?.client_id ?? "",
+      staff_id: prefill?.staff_id ?? "",
+      service_id: prefill?.service_id ?? "",
+      amount: prefill?.amount ?? 0,
+      payment_method: "CARD",
+      payment_date: prefill?.payment_date ?? data.today,
       reference_note: "",
     },
   })
@@ -60,7 +95,7 @@ export function PaymentForm() {
     try {
       await apiFetch("/api/payments", { method: "POST", body: data })
       toast.success("Payment recorded successfully")
-      router.push("/dashboard/payments")
+      router.push(prefill ? "/dashboard/calendar" : "/dashboard/payments")
       router.refresh()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not record payment")
@@ -69,9 +104,9 @@ export function PaymentForm() {
 
   function handleServiceChange(serviceId: string) {
     form.setValue("service_id", serviceId)
-    const service = services.find((s) => s.id === serviceId)
+    const service = activeServices.find((s) => s.id === serviceId)
     if (service) {
-      form.setValue("amount", service.default_price)
+      form.setValue("amount", service.price)
     }
   }
 
@@ -149,7 +184,7 @@ export function PaymentForm() {
                   <SelectContent>
                     {activeServices.map((service) => (
                       <SelectItem key={service.id} value={service.id}>
-                        {service.name} ({formatCurrency(service.default_price)})
+                        {service.name} ({formatCurrency(service.price)})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -164,23 +199,15 @@ export function PaymentForm() {
             name="amount"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Amount (in cents)</FormLabel>
+                <FormLabel>Amount ($)</FormLabel>
                 <FormControl>
-                  <Input
-                    type="number"
-                    placeholder="e.g. 8500 for $85.00"
-                    value={field.value || ""}
-                    onChange={(e) => field.onChange(Number(e.target.value) || 0)}
+                  <DollarInput
+                    value={field.value}
+                    onChange={field.onChange}
                     onBlur={field.onBlur}
                     name={field.name}
-                    ref={field.ref}
                   />
                 </FormControl>
-                {field.value > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    {formatCurrency(field.value)}
-                  </p>
-                )}
                 <FormMessage />
               </FormItem>
             )}
@@ -263,7 +290,7 @@ export function PaymentForm() {
             Record Payment
           </Button>
           <Button variant="outline" type="button" asChild>
-            <Link href="/dashboard/payments">Cancel</Link>
+            <Link href={prefill ? "/dashboard/calendar" : "/dashboard/payments"}>Cancel</Link>
           </Button>
         </div>
       </form>

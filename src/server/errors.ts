@@ -6,6 +6,8 @@ export type ApiErrorCode =
   | "UNAUTHORIZED"
   | "FORBIDDEN"
   | "NOT_FOUND"
+  | "BOOKING_CONFLICT"
+  | "OUTSIDE_WORKING_HOURS"
   | "PLAN_FEATURE_UNAVAILABLE"
   | "PLAN_LIMIT_REACHED"
   | "NOT_IMPLEMENTED"
@@ -56,5 +58,12 @@ export class PlanLimitError extends ApiError {
       `Your plan allows up to ${formatCount(resource, limit)}. Upgrade to ${PLAN_NAMES[requiredPlan]} to add more.`,
       { resource, limit, requiredPlan }
     )
+  }
+}
+
+/** The requested time overlaps another booking for the therapist or client. */
+export class BookingConflictError extends ApiError {
+  constructor(message: string, conflictingAppointmentId: string) {
+    super(409, "BOOKING_CONFLICT", message, { conflictingAppointmentId })
   }
 }

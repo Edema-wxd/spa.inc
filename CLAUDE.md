@@ -4,14 +4,15 @@ Guidance for Claude Code when working in this repository.
 
 ## Project
 
-Spa.Inc is an admin and staff dashboard for spa / massage businesses: clients, staff schedules,
-payments, revenue analytics, expenses and P&L, plus public marketing pages (landing, pricing,
+Spa.Inc is an admin and staff dashboard for spa / massage businesses: booking calendar, clients,
+staff schedules, payments, revenue analytics, expenses and P&L, plus public marketing pages (landing, pricing,
 contact sales). The original product spec is `raw.txt`; `README.md` has the current overview.
 
 **Current state: demo.** No auth and no database are required. The backend layers exist
-(API routes, services, repositories, Prisma schema) and run against an in-memory store seeded
-from `src/lib/mock-data/`. Many dashboard pages still import mock data directly; migrate them to
-services when you touch them (the clients list and Add Client flow are the reference examples).
+(API routes, services, repositories, Prisma schema) and run against an in-memory store seeded by
+`src/server/demo/seed.ts`, which simulates 12 months of a seven-therapist spa. Every page reads
+services; never import seed data into pages or client components. The roadmap with action steps
+is `docs/ACTION_PLAN.md`.
 
 ## Commands
 
@@ -50,19 +51,23 @@ src/server/                 server-only code
   entitlements.ts           assertFeature / assertCanAdd / assertRole
   errors.ts, http.ts        ApiError types, route() wrapper, ok()/created(), parseBody/parseQuery
   services/                 business rules per domain - the only place plan/role checks live
+                            business.ts: getBusinessClock (timezone, today), lookups, local-date queries
   repositories/             types.ts (interfaces), memory.ts (default), prisma.ts; getRepositories()
+  demo/                     server-only demo seed (seed.ts generates bookings, payments, expenses)
 src/lib/
   plans.ts                  SINGLE SOURCE OF TRUTH for plan limits and features
   pricing.ts                prices (USD + NGN), marketing copy, comparison table (derived from plans.ts)
   region.ts                 visitor country -> pricing currency
   validation/               zod schemas shared by forms and API routes
   api-client.ts             apiFetch() for client components
-  mock-data/                seed data + metric helpers used by pages not yet on services
+  time.ts                   business-timezone helpers (date keys, zonedTimeToUtc, formatInZone)
+  ranges.ts                 report periods for ?range=30d|90d|12m
 src/components/
   ui/                       shadcn primitives - avoid hand-editing, regenerate with the shadcn CLI
   shared/                   PageHeader, DataTable, ChartWrapper, EmptyState, SummaryCard, ...
   plan/                     PlanProvider/usePlan, RequireFeature, FeatureGate, UpgradePrompt, meters
-  layout/                   dashboard shell, sidebars, header, nav-items.ts
+  layout/                   dashboard shell, sidebars, header, nav-items.ts, session-user (signed-in user)
+  calendar/                 calendar view, booking dialog, appointment sheet
   settings/, pricing/, ...  feature components
 src/generated/              Prisma client output (gitignored)
 ```
@@ -94,6 +99,16 @@ src/generated/              Prisma client output (gitignored)
 - Forms: zod schema + `zodResolver`, submit with `apiFetch`, show field errors as
   `text-xs text-destructive`, `router.refresh()` after mutations so plan usage updates.
 - Do not use em dashes in user-facing copy; use commas or hyphens.
+- Time: appointments are UTC instants; days, "today" and working hours are in the location's
+  timezone. Use `getBusinessClock(ctx)` and `src/lib/time.ts`, never `new Date()` day math or
+  date-fns `startOfDay` on the server. Payment and expense dates are business-local date keys.
+  Return display dates from services as date keys (`"yyyy-MM-dd"`) so they don't shift per viewer.
+- Bookings: all scheduling rules (clashes, working hours, bookable staff) live in
+  `src/server/services/appointments.ts`; the calendar UI only offers what `/api/availability` returns.
+- Gated pages: the segment layout renders the upgrade prompt, and the page itself returns `null`
+  when the plan lacks the feature (pages and layouts render in parallel, and services throw).
+- Never show invented numbers. Comparisons must be like-for-like (same weekdays, complete
+  periods) and partial periods must be labelled.
 
 ## Plans
 
@@ -123,6 +138,5 @@ src/generated/              Prisma client output (gitignored)
 - No auth or route protection; `getRequestContext()` returns a fixed demo admin.
 - The in-memory store resets on restart and is per server instance.
 - Notifications (confirmation emails, sales lead alerts) only log to the console.
-- Mock helpers fall back to hardcoded demo numbers when "today" has no data (disabled by
-  `NEXT_PUBLIC_DEMO_EMPTY=true`).
-- No database seed script or migrations committed yet.
+- No database seed script or migrations committed yet (the demo seed only fills the memory store).
+- Money is always shown in USD, even for NGN customers (see docs/ACTION_PLAN.md item 4).

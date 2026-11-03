@@ -4,9 +4,9 @@ import { Users } from "lucide-react"
 import { DataTable } from "@/components/shared/data-table"
 import { EmptyState } from "@/components/shared/empty-state"
 import { clientColumns } from "@/components/clients/client-columns"
-import type { Client } from "@/types"
+import type { ClientRow } from "@/server/services/clients"
 
-export function ClientsTable({ clients }: { clients: Client[] }) {
+export function ClientsTable({ clients }: { clients: ClientRow[] }) {
   return (
     <DataTable
       columns={clientColumns}

@@ -2,14 +2,11 @@
 
 import { type ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
-import { formatCurrency, formatDate, cn } from "@/lib/utils"
-import { getStaffById } from "@/lib/mock-data"
-import type { Expense } from "@/types"
+import { formatCurrency, formatDate, cn, humanize } from "@/lib/utils"
+import type { ExpenseRow } from "@/server/services/expenses"
 import { CheckCircle2, Minus } from "lucide-react"
 
-export type EnrichedExpense = Expense & {
-  created_by_name: string
-}
+export type EnrichedExpense = ExpenseRow
 
 const categoryColorMap: Record<string, string> = {
   SUPPLIES: "bg-blue-100 text-blue-700 hover:bg-blue-100",
@@ -44,7 +41,7 @@ export const expenseColumns: ColumnDef<EnrichedExpense>[] = [
           variant="secondary"
           className={cn(colors, "font-medium")}
         >
-          {category}
+          {humanize(category)}
         </Badge>
       )
     },

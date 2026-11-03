@@ -5,12 +5,9 @@ import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { formatCurrency, formatDate, cn } from "@/lib/utils"
-import { getClientById, getStaffById } from "@/lib/mock-data"
-import type { Payment } from "@/types"
+import type { PaymentRow } from "@/server/services/payments"
 
-export type EnrichedPayment = Payment & {
-  client_name: string
-}
+export type EnrichedPayment = PaymentRow
 
 const methodColorMap: Record<string, string> = {
   CARD: "bg-blue-100 text-blue-700 hover:bg-blue-100",
@@ -48,17 +45,23 @@ export const paymentColumns: ColumnDef<EnrichedPayment>[] = [
     },
   },
   {
-    accessorKey: "staff_id",
-    header: "Staff",
+    accessorKey: "service_name",
+    header: "Service",
     enableSorting: false,
-    cell: ({ row }) => {
-      const staff = getStaffById(row.getValue("staff_id"))
-      return (
-        <span className="text-sm text-muted-foreground">
-          {staff?.full_name || "Unknown"}
-        </span>
-      )
-    },
+    cell: ({ row }) => (
+      <span className="text-sm">
+        {row.original.service_name}
+        {row.original.reference_note && (
+          <span className="block text-xs text-muted-foreground">{row.original.reference_note}</span>
+        )}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "staff_name",
+    header: "Therapist",
+    enableSorting: false,
+    cell: ({ row }) => <span className="text-sm text-muted-foreground">{row.original.staff_name}</span>,
   },
   {
     accessorKey: "amount",

@@ -17,14 +17,20 @@ export const staffUpdateSchema = z.object({
 
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM (24h)")
 
-export const scheduleSchema = z.array(
-  z.object({
-    day_of_week: z.number().int().min(0).max(6),
-    start_time: time,
-    end_time: time,
-    is_available: z.boolean(),
+export const scheduleSchema = z
+  .array(
+    z
+      .object({
+        day_of_week: z.number().int().min(0).max(6),
+        start_time: time,
+        end_time: time,
+        is_available: z.boolean(),
+      })
+      .refine((d) => d.end_time > d.start_time, { message: "End time must be after start time", path: ["end_time"] })
+  )
+  .refine((days) => new Set(days.map((d) => d.day_of_week)).size === days.length, {
+    message: "Each day can only appear once",
   })
-)
 
 export type UserInviteInput = z.infer<typeof userInviteSchema>
 export type StaffUpdateInput = z.infer<typeof staffUpdateSchema>

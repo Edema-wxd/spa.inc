@@ -1,6 +1,8 @@
+import "server-only"
+
 import { Client } from "@/types"
 
-export const clients: Client[] = [
+export const featuredClients: Client[] = [
   {
     id: "client-001",
     full_name: "Olivia Johnson",

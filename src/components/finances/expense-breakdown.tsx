@@ -11,7 +11,6 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Receipt } from "lucide-react"
 import { EmptyState } from "@/components/shared/empty-state"
-import { getExpensesByCategory } from "@/lib/mock-data"
 import { formatCurrency } from "@/lib/utils"
 
 const categoryDotColor: Record<string, string> = {
@@ -24,8 +23,7 @@ const categoryDotColor: Record<string, string> = {
   OTHER: "bg-gray-400",
 }
 
-export function ExpenseBreakdown() {
-  const data = getExpensesByCategory()
+export function ExpenseBreakdown({ data }: { data: { category: string; total: number }[] }) {
   const grandTotal = data.reduce((sum, d) => sum + d.total, 0)
 
   return (

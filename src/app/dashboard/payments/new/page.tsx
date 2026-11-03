@@ -5,25 +5,33 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { PaymentForm } from "@/components/payments/payment-form"
 import { EmptyState } from "@/components/shared/empty-state"
-import { clients } from "@/lib/mock-data"
+import { getRequestContext } from "@/server/context"
+import { getPaymentFormData } from "@/server/services/payments"
 
-export default function NewPaymentPage() {
+export default async function NewPaymentPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ appointment?: string }>
+}) {
+  const { appointment } = await searchParams
+  const data = await getPaymentFormData(await getRequestContext(), appointment)
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="outline" size="icon-sm" asChild>
-          <Link href="/dashboard/payments">
+          <Link href={data.prefill ? "/dashboard/calendar" : "/dashboard/payments"}>
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
         <PageHeader
           title="Record Payment"
-          description="Log a new payment transaction"
+          description={data.prefill ? `For ${data.prefill.summary}` : "Log a new payment transaction"}
         />
       </div>
       <Card>
         <CardContent>
-          {clients.length === 0 ? (
+          {data.clients.length === 0 ? (
             <EmptyState
               icon={<Users className="h-12 w-12" />}
               title="Add a client first"
@@ -31,7 +39,7 @@ export default function NewPaymentPage() {
               action={{ label: "Add Client", href: "/dashboard/clients/new" }}
             />
           ) : (
-            <PaymentForm />
+            <PaymentForm data={data} />
           )}
         </CardContent>
       </Card>

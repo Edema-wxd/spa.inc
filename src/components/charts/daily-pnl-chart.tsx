@@ -11,25 +11,9 @@ import {
   ReferenceLine,
 } from "recharts"
 import { ChartWrapper } from "@/components/shared/chart-wrapper"
-import { getRevenueVsExpenses } from "@/lib/mock-data"
 import { PROFIT_COLOR } from "@/lib/chart-colors"
-import { formatCurrency } from "@/lib/utils"
-
-function computeDailyPnL() {
-  const dailyData = getRevenueVsExpenses(30)
-  let cumulative = 0
-
-  return dailyData.map((day) => {
-    const dailyProfit = day.revenue - day.expenses
-    cumulative += dailyProfit
-    return {
-      date: day.date,
-      profit: cumulative,
-    }
-  })
-}
-
-const data = computeDailyPnL()
+import { formatDateKey } from "@/lib/time"
+import { formatCurrency, formatCurrencyAxis } from "@/lib/utils"
 
 function CustomTooltip({
   active,
@@ -47,25 +31,27 @@ function CustomTooltip({
 
   return (
     <div className="rounded-lg border bg-card p-3 shadow-md">
-      <p className="mb-1 text-sm font-medium">{label}</p>
+      <p className="mb-1 text-sm font-medium">
+        Through {label ? formatDateKey(label, { weekday: "short", month: "short", day: "numeric" }) : ""}
+      </p>
       <p
         className="text-sm font-medium"
         style={{ color: isPositive ? "#27AE60" : "#E74C3C" }}
       >
-        Cumulative P&L: {formatCurrency(value)}
+        Running profit: {formatCurrency(value)}
       </p>
     </div>
   )
 }
 
-export function DailyPnLChart() {
+export function DailyPnLChart({ data }: { data: { date: string; profit: number }[] }) {
   const minProfit = Math.min(...data.map((d) => d.profit))
   const hasNegative = minProfit < 0
 
   return (
     <ChartWrapper
-      title="Daily Profit Trend"
-      description="Cumulative P&L over the last 30 days"
+      title="Running Profit"
+      description="Cumulative profit over the last 30 days. Rent and payroll days show as steps down."
       isEmpty={data.every((d) => d.profit === 0)}
       emptyTitle="No profit data yet"
       emptyDescription="Record payments and expenses to see your daily profit trend."
@@ -81,6 +67,8 @@ export function DailyPnLChart() {
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis
             dataKey="date"
+            minTickGap={24}
+            tickFormatter={(key: string) => formatDateKey(key, { month: "short", day: "numeric" })}
             tick={{ fontSize: 12 }}
             tickLine={false}
             axisLine={false}
@@ -89,9 +77,7 @@ export function DailyPnLChart() {
             tick={{ fontSize: 12 }}
             tickLine={false}
             axisLine={false}
-            tickFormatter={(value: number) =>
-              `$${(value / 100).toLocaleString()}`
-            }
+            tickFormatter={formatCurrencyAxis}
           />
           <Tooltip content={<CustomTooltip />} />
           {hasNegative && (

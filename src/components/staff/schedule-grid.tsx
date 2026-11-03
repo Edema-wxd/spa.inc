@@ -3,12 +3,12 @@
 import { CalendarClock } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { EmptyState } from "@/components/shared/empty-state"
-import { schedules } from "@/lib/mock-data"
+import type { StaffSchedule } from "@/types"
 import { formatTime } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 
 interface ScheduleGridProps {
-  staffId: string
+  schedule: StaffSchedule[]
 }
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -17,8 +17,7 @@ const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 // Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6, Sun=0
 const DAY_INDICES = [1, 2, 3, 4, 5, 6, 0]
 
-export function ScheduleGrid({ staffId }: ScheduleGridProps) {
-  const staffSchedules = schedules.filter((s) => s.staff_id === staffId)
+export function ScheduleGrid({ schedule: staffSchedules }: ScheduleGridProps) {
 
   if (staffSchedules.length === 0) {
     return (

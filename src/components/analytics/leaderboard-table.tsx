@@ -9,13 +9,12 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getStaffLeaderboard } from "@/lib/mock-data"
+import type { LeaderboardRow } from "@/server/services/analytics"
 import { formatCurrency } from "@/lib/utils"
 import { Star, Trophy } from "lucide-react"
 import { EmptyState } from "@/components/shared/empty-state"
 import { cn } from "@/lib/utils"
 
-const leaderboard = getStaffLeaderboard()
 
 const rankStyles: Record<number, string> = {
   1: "bg-amber-100 text-amber-800 border-amber-300",
@@ -43,7 +42,8 @@ function RankBadge({ rank }: { rank: number }) {
   )
 }
 
-function StarRating({ rating }: { rating: number }) {
+function StarRating({ rating }: { rating: number | null }) {
+  if (rating === null) return <span className="text-sm text-muted-foreground">No ratings</span>
   const fullStars = Math.floor(rating)
   const hasHalf = rating - fullStars >= 0.5
 
@@ -69,7 +69,7 @@ function StarRating({ rating }: { rating: number }) {
   )
 }
 
-export function LeaderboardTable() {
+export function LeaderboardTable({ rows: leaderboard }: { rows: LeaderboardRow[] }) {
   return (
     <Card>
       <CardHeader>

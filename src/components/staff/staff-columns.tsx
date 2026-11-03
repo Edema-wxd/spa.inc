@@ -5,35 +5,10 @@ import Link from "next/link"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { type User } from "@/types"
+import type { StaffRow } from "@/server/services/users"
 import { getInitials, formatCurrency } from "@/lib/utils"
-import { appointments, payments } from "@/lib/mock-data"
 
-function getStaffSessionCount(staffId: string): number {
-  return appointments.filter(
-    (a) => a.staff_id === staffId && a.status === "COMPLETED"
-  ).length
-}
-
-function getStaffRevenue(staffId: string): number {
-  return payments
-    .filter((p) => p.staff_id === staffId && p.status === "COMPLETED")
-    .reduce((sum, p) => sum + p.amount, 0)
-}
-
-function getStaffRating(staffId: string): number {
-  const rated = appointments.filter(
-    (a) =>
-      a.staff_id === staffId &&
-      a.status === "COMPLETED" &&
-      a.satisfaction_rating !== null
-  )
-  if (rated.length === 0) return 0
-  const total = rated.reduce((sum, a) => sum + (a.satisfaction_rating as number), 0)
-  return Math.round((total / rated.length) * 10) / 10
-}
-
-export const staffColumns: ColumnDef<User>[] = [
+export const staffColumns: ColumnDef<StaffRow>[] = [
   {
     accessorKey: "full_name",
     header: "Name",
@@ -86,9 +61,9 @@ export const staffColumns: ColumnDef<User>[] = [
     id: "sessions",
     header: "Sessions",
     enableSorting: true,
-    accessorFn: (row) => getStaffSessionCount(row.id),
+    accessorKey: "sessions",
     cell: ({ row }) => {
-      const count = getStaffSessionCount(row.original.id)
+      const count = row.original.sessions
       return <span className="tabular-nums">{count}</span>
     },
   },
@@ -96,9 +71,9 @@ export const staffColumns: ColumnDef<User>[] = [
     id: "revenue",
     header: "Revenue",
     enableSorting: true,
-    accessorFn: (row) => getStaffRevenue(row.id),
+    accessorKey: "revenue",
     cell: ({ row }) => {
-      const revenue = getStaffRevenue(row.original.id)
+      const revenue = row.original.revenue
       return <span className="tabular-nums">{formatCurrency(revenue)}</span>
     },
   },
@@ -106,10 +81,10 @@ export const staffColumns: ColumnDef<User>[] = [
     id: "rating",
     header: "Rating",
     enableSorting: true,
-    accessorFn: (row) => getStaffRating(row.id),
+    accessorFn: (row) => row.rating ?? 0,
     cell: ({ row }) => {
-      const rating = getStaffRating(row.original.id)
-      if (rating === 0) return <span className="text-muted-foreground">N/A</span>
+      const rating = row.original.rating
+      if (rating === null) return <span className="text-muted-foreground">N/A</span>
       return <span className="tabular-nums">{rating} &#9733;</span>
     },
   },

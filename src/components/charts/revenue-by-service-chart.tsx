@@ -10,11 +10,9 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { ChartWrapper } from "@/components/shared/chart-wrapper"
-import { getRevenueByService } from "@/lib/mock-data"
 import { REVENUE_COLOR } from "@/lib/chart-colors"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, formatCurrencyAxis } from "@/lib/utils"
 
-const data = getRevenueByService()
 
 function CustomTooltip({
   active,
@@ -37,7 +35,7 @@ function CustomTooltip({
   )
 }
 
-export function RevenueByServiceChart() {
+export function RevenueByServiceChart({ data }: { data: { name: string; revenue: number }[] }) {
   return (
     <ChartWrapper
       title="Revenue by Service Type"
@@ -53,9 +51,7 @@ export function RevenueByServiceChart() {
             tick={{ fontSize: 12 }}
             tickLine={false}
             axisLine={false}
-            tickFormatter={(value: number) =>
-              `$${(value / 100).toLocaleString()}`
-            }
+            tickFormatter={formatCurrencyAxis}
           />
           <YAxis
             type="category"

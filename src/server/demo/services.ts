@@ -1,6 +1,8 @@
+import "server-only"
+
 import { Service } from "@/types"
 
-export const services: Service[] = [
+export const servicesSeed: Service[] = [
   {
     id: "svc-001",
     name: "Swedish Massage",

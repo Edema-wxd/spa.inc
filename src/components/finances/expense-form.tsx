@@ -36,14 +36,14 @@ import {
 
 type ExpenseFormValues = ExpenseInput
 
-const today = new Date().toISOString().split("T")[0]
-
 interface ExpenseFormProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** Today in the business timezone, "yyyy-MM-dd" */
+  today: string
 }
 
-export function ExpenseForm({ open, onOpenChange }: ExpenseFormProps) {
+export function ExpenseForm({ open, onOpenChange, today }: ExpenseFormProps) {
   const router = useRouter()
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),

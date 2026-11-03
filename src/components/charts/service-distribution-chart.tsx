@@ -10,11 +10,9 @@ import {
   type PieLabelRenderProps,
 } from "recharts"
 import { ChartWrapper } from "@/components/shared/chart-wrapper"
-import { getRevenueByService } from "@/lib/mock-data"
 import { CHART_COLORS } from "@/lib/chart-colors"
 import { formatCurrency } from "@/lib/utils"
 
-const data = getRevenueByService()
 
 function CustomTooltip({
   active,
@@ -66,7 +64,7 @@ function renderCustomizedLabel(props: PieLabelRenderProps) {
   )
 }
 
-export function ServiceDistributionChart() {
+export function ServiceDistributionChart({ data }: { data: { name: string; revenue: number }[] }) {
   return (
     <ChartWrapper
       title="Revenue by Service"

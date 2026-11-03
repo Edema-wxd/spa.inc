@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { format, formatDistanceToNow } from "date-fns"
+import { formatDateKey } from "@/lib/time"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -13,7 +14,31 @@ export function formatCurrency(cents: number): string {
   }).format(cents / 100)
 }
 
+/** Short axis labels: "$850", "$12.5k" */
+export function formatCurrencyAxis(cents: number): string {
+  const dollars = cents / 100
+  if (Math.abs(dollars) >= 1000) {
+    return `$${(dollars / 1000).toLocaleString("en-US", { maximumFractionDigits: 1 })}k`
+  }
+  return `$${dollars.toLocaleString("en-US", { maximumFractionDigits: 0 })}`
+}
+
+/** "+8.2%" / "-3.1%" */
+export function formatPercentChange(change: number): string {
+  return `${change > 0 ? "+" : ""}${change.toLocaleString("en-US", { maximumFractionDigits: 1 })}%`
+}
+
+/** "PAYROLL" -> "Payroll", "NO_SHOW" -> "No show" */
+export function humanize(value: string): string {
+  const text = value.replace(/_/g, " ").toLowerCase()
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
 export function formatDate(date: string | Date): string {
+  // Date-only strings ("2026-11-03") are calendar dates, not UTC midnight
+  if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return formatDateKey(date, { month: "short", day: "numeric", year: "numeric" })
+  }
   return format(new Date(date), "MMM d, yyyy")
 }
 

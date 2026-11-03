@@ -1,6 +1,8 @@
 import Link from "next/link"
 import { getRequestContext } from "@/server/context"
-import { getRepositories } from "@/server/repositories"
+import { NotFoundError } from "@/server/errors"
+import { getClientProfile } from "@/server/services/clients"
+import { dateKeyInZone } from "@/lib/time"
 import { formatDate, formatPhone } from "@/lib/utils"
 import { VisitHistory } from "@/components/clients/visit-history"
 import { ClientStats } from "@/components/clients/client-stats"
@@ -12,7 +14,8 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card"
-import { ArrowLeft, Mail, Phone, MapPin, Calendar, FileText } from "lucide-react"
+import { ArrowLeft, CalendarPlus, Mail, Phone, MapPin, Calendar, FileText } from "lucide-react"
+import { StatusBadge } from "@/components/shared/status-badge"
 
 export default async function ClientDetailPage({
   params,
@@ -21,9 +24,12 @@ export default async function ClientDetailPage({
 }) {
   const { id } = await params
   const ctx = await getRequestContext()
-  const client = await (await getRepositories()).clients.get(ctx.organizationId, id)
+  const profile = await getClientProfile(ctx, id).catch((err) => {
+    if (err instanceof NotFoundError) return null
+    throw err
+  })
 
-  if (!client) {
+  if (!profile) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20">
         <h2 className="text-xl font-semibold">Client not found</h2>
@@ -40,15 +46,24 @@ export default async function ClientDetailPage({
     )
   }
 
+  const { client, stats, upcoming, past, timezone } = profile
+
   return (
     <div className="space-y-6">
-      {/* Back button */}
-      <Button asChild variant="ghost" size="sm">
-        <Link href="/dashboard/clients">
-          <ArrowLeft className="h-4 w-4" />
-          Back to Clients
-        </Link>
-      </Button>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button asChild variant="ghost" size="sm">
+          <Link href="/dashboard/clients">
+            <ArrowLeft className="h-4 w-4" />
+            Back to Clients
+          </Link>
+        </Button>
+        <Button asChild size="sm">
+          <Link href={`/dashboard/calendar?book=1&client=${client.id}`}>
+            <CalendarPlus className="h-4 w-4" />
+            Book appointment
+          </Link>
+        </Button>
+      </div>
 
       {/* Two-column layout */}
       <div className="grid gap-6 lg:grid-cols-3">
@@ -57,7 +72,10 @@ export default async function ClientDetailPage({
           {/* Client info card */}
           <Card>
             <CardHeader>
-              <CardTitle>{client.full_name}</CardTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <CardTitle>{client.full_name}</CardTitle>
+                <StatusBadge status={stats.status} />
+              </div>
               <CardDescription>Client details and contact information</CardDescription>
             </CardHeader>
             <CardContent>
@@ -66,7 +84,7 @@ export default async function ClientDetailPage({
                   <Mail className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                   <div>
                     <dt className="text-xs text-muted-foreground">Email</dt>
-                    <dd className="text-sm">{client.email}</dd>
+                    <dd className="text-sm">{client.email || "Not provided"}</dd>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
@@ -110,12 +128,12 @@ export default async function ClientDetailPage({
           </Card>
 
           {/* Visit history */}
-          <VisitHistory clientId={id} />
+          <VisitHistory upcoming={upcoming} past={past} timezone={timezone} />
         </div>
 
         {/* Right column - Stats */}
         <div className="lg:col-span-1">
-          <ClientStats clientId={id} />
+          <ClientStats stats={stats} memberSince={dateKeyInZone(client.created_at, timezone)} />
         </div>
       </div>
     </div>

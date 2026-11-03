@@ -21,13 +21,13 @@ export function SummaryCard({
 }: SummaryCardProps) {
   return (
     <Card>
-      <CardContent className="p-6">
+      <CardContent className="p-4 sm:p-6">
         <div className="flex items-start justify-between">
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <p className="text-sm text-muted-foreground">{title}</p>
-            <p className="text-2xl font-bold">{value}</p>
+            <p className="truncate text-xl font-bold sm:text-2xl">{value}</p>
           </div>
-          <div className="rounded-full bg-spa-light p-2">
+          <div className="hidden rounded-full bg-spa-light p-2 sm:block">
             <Icon className="h-5 w-5 text-spa-accent" />
           </div>
         </div>

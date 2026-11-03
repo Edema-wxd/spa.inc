@@ -23,14 +23,17 @@ const segmentLabels: Record<string, string> = {
   finances: "Finances",
   pnl: "Profit & Loss",
   settings: "Settings",
+  calendar: "Calendar",
   new: "New",
 }
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// Demo ids such as "client-042" or "staff-003"
+const DEMO_ID_REGEX = /^[a-z]+-[0-9a-f]{3,}$/i
 
 function getSegmentLabel(segment: string): string {
-  if (UUID_REGEX.test(segment)) return "Detail"
+  if (UUID_REGEX.test(segment) || DEMO_ID_REGEX.test(segment)) return "Detail"
   return segmentLabels[segment] || segment.charAt(0).toUpperCase() + segment.slice(1)
 }
 

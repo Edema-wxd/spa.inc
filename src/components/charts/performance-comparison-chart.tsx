@@ -11,17 +11,10 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { ChartWrapper } from "@/components/shared/chart-wrapper"
-import { getStaffLeaderboard } from "@/lib/mock-data"
+import type { LeaderboardRow } from "@/server/services/analytics"
 import { REVENUE_COLOR } from "@/lib/chart-colors"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, formatCurrencyAxis } from "@/lib/utils"
 
-const leaderboard = getStaffLeaderboard()
-
-const data = leaderboard.map((staff) => ({
-  name: staff.name,
-  revenue: staff.totalRevenue,
-  sessions: staff.completedAppointments,
-}))
 
 function CustomTooltip({
   active,
@@ -49,7 +42,12 @@ function CustomTooltip({
   )
 }
 
-export function PerformanceComparisonChart() {
+export function PerformanceComparisonChart({ rows }: { rows: LeaderboardRow[] }) {
+  const data = rows.map((staff) => ({
+    name: staff.name,
+    revenue: staff.totalRevenue,
+    sessions: staff.completedAppointments,
+  }))
   return (
     <ChartWrapper
       title="Staff Performance Comparison"
@@ -71,9 +69,7 @@ export function PerformanceComparisonChart() {
             tick={{ fontSize: 12 }}
             tickLine={false}
             axisLine={false}
-            tickFormatter={(value: number) =>
-              `$${(value / 100).toLocaleString()}`
-            }
+            tickFormatter={formatCurrencyAxis}
           />
           <YAxis
             yAxisId="sessions"

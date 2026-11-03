@@ -1,83 +1,44 @@
-"use client"
-
-import { appointments, payments } from "@/lib/mock-data"
+import { CalendarDays, DollarSign, TrendingUp, Star, UserPlus, UserX } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
 import { formatCurrency, formatDate } from "@/lib/utils"
-import { getClientById } from "@/lib/mock-data"
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-} from "@/components/ui/card"
-import { CalendarDays, DollarSign, TrendingUp, Star, UserPlus } from "lucide-react"
 
 interface ClientStatsProps {
-  clientId: string
+  memberSince: string
+  stats: {
+    visits: number
+    spent: number
+    averagePerVisit: number
+    averageRating: number | null
+    noShows: number
+  }
 }
 
-export function ClientStats({ clientId }: ClientStatsProps) {
-  const client = getClientById(clientId)
-
-  const clientAppointments = appointments.filter(
-    (a) => a.client_id === clientId
-  )
-  const totalVisits = clientAppointments.length
-
-  const completedPayments = payments.filter(
-    (p) => p.client_id === clientId && p.status === "COMPLETED"
-  )
-  const totalSpent = completedPayments.reduce((sum, p) => sum + p.amount, 0)
-
-  const averagePerVisit = totalVisits > 0 ? Math.round(totalSpent / totalVisits) : 0
-
-  const ratingsArr = clientAppointments
-    .filter((a) => a.satisfaction_rating !== null)
-    .map((a) => a.satisfaction_rating as number)
-  const averageSatisfaction =
-    ratingsArr.length > 0
-      ? Math.round((ratingsArr.reduce((s, r) => s + r, 0) / ratingsArr.length) * 10) / 10
-      : null
-
-  const stats = [
-    {
-      label: "Total Visits",
-      value: totalVisits.toString(),
-      icon: CalendarDays,
-    },
-    {
-      label: "Total Spent",
-      value: formatCurrency(totalSpent),
-      icon: DollarSign,
-    },
-    {
-      label: "Average per Visit",
-      value: formatCurrency(averagePerVisit),
-      icon: TrendingUp,
-    },
+export function ClientStats({ memberSince, stats }: ClientStatsProps) {
+  const rows = [
+    { label: "Completed Visits", value: stats.visits.toString(), icon: CalendarDays },
+    { label: "Total Spent", value: formatCurrency(stats.spent), icon: DollarSign },
+    { label: "Average per Visit", value: formatCurrency(stats.averagePerVisit), icon: TrendingUp },
     {
       label: "Avg. Satisfaction",
-      value: averageSatisfaction !== null ? `${averageSatisfaction} / 5` : "No ratings",
+      value: stats.averageRating !== null ? `${stats.averageRating} / 5` : "No ratings",
       icon: Star,
     },
-    {
-      label: "Member Since",
-      value: client ? formatDate(client.created_at) : "--",
-      icon: UserPlus,
-    },
+    { label: "No-shows", value: stats.noShows.toString(), icon: UserX },
+    { label: "Client Since", value: formatDate(memberSince), icon: UserPlus },
   ]
 
   return (
-    <div className="space-y-3">
-      {stats.map((stat) => (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
+      {rows.map((stat) => (
         <Card key={stat.label}>
           <CardContent className="pt-0">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
                 <stat.icon className="h-4 w-4 text-muted-foreground" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs text-muted-foreground">{stat.label}</p>
-                <p className="text-sm font-semibold">{stat.value}</p>
+                <p className="truncate text-sm font-semibold">{stat.value}</p>
               </div>
             </div>
           </CardContent>

@@ -1,11 +1,12 @@
 # Spa.Inc
 
-A management dashboard for spas and massage businesses: client records, therapist schedules,
-payments, revenue analytics, expenses and profit & loss, plus a public pricing page and a sales
-enquiry form.
+A management dashboard for spas and massage businesses: a booking calendar, client records,
+therapist schedules, payments, revenue analytics, expenses and profit & loss, plus a public pricing
+page and a sales enquiry form.
 
-The app currently runs as a **demo**: it ships with seeded sample data and needs no database or
-login to try. The backend is structured so that switching to a real PostgreSQL database is a
+The app currently runs as a **demo**: it simulates twelve months of a seven-therapist day spa in
+Austin (bookings generated from real working hours, payments, commission payroll and running
+costs) and needs no database or login to try. Every number on screen is computed from that data. The backend is structured so that switching to a real PostgreSQL database is a
 configuration change (see [Backend](#backend)).
 
 ## Quick start
@@ -21,6 +22,7 @@ npm run dev        # http://localhost:3000
 | `/pricing` | Plans, comparison table, add-ons |
 | `/contact-sales` | Enterprise / custom quote form |
 | `/dashboard` | The admin dashboard (no login needed in the demo) |
+| `/dashboard/calendar` | Day view by therapist, week view per therapist; click a free slot to book |
 | `/dashboard/settings?tab=plan` | Switch the demo between plans to see limits and locked features |
 
 ### Scripts
@@ -104,9 +106,11 @@ src/server/
   services/                 business rules (one file per domain)
   repositories/
     types.ts                data access interfaces
-    memory.ts               in-memory store seeded from src/lib/mock-data (default)
+    memory.ts               in-memory store seeded from src/server/demo (default)
     prisma.ts               Prisma implementation (DATA_SOURCE=prisma)
+  demo/seed.ts              deterministic 12-month demo business (server-only)
 src/lib/validation/         zod schemas shared by forms and API routes
+src/lib/time.ts             business-timezone date helpers used everywhere
 ```
 
 Requests flow **route → service → repository**. Routes stay thin, services hold the rules (plan
@@ -130,8 +134,9 @@ Every response uses the same shape:
 | GET, POST | `/api/staff` | Manager+ |
 | GET, PUT | `/api/staff/[id]` | Manager+ |
 | GET, PUT | `/api/staff/[id]/schedule` | Manager+ |
-| GET, POST | `/api/appointments` | POST emails a confirmation on Executive+ |
-| PUT | `/api/appointments/[id]` | |
+| GET, POST | `/api/appointments` | POST checks working hours and clashes (409 `BOOKING_CONFLICT`, 422 `OUTSIDE_WORKING_HOURS`); emails a confirmation on Executive+ |
+| PUT | `/api/appointments/[id]` | Reschedule, reassign or change status; the same checks apply |
+| GET | `/api/availability` | `?staffId=&date=&serviceId=`: free start times in the business timezone |
 | GET, POST | `/api/payments` | |
 | GET | `/api/payments/summary` | `?period=daily\|weekly\|monthly&from=&to=` |
 | GET, POST | `/api/expenses` | Admin, Manager+ |
@@ -154,13 +159,15 @@ Every response uses the same shape:
 
 ### Roadmap
 
+The full plan, with action steps for each item, is in [`docs/ACTION_PLAN.md`](docs/ACTION_PLAN.md).
+
 - [ ] Supabase Auth: replace the demo user in `src/server/context.ts` with the session, and add
       route protection for `/dashboard`
 - [ ] Load each organization's plan from `subscriptions` instead of the demo cookie
 - [ ] Billing checkout and webhooks (Paystack for NGN, a USD provider for everyone else)
-- [ ] Move the remaining dashboard pages from `src/lib/mock-data` to services (the clients list
-      and Add Client flow already use them; other pages still read mock data directly)
-- [ ] Seed script for the database
+- [x] Booking calendar with clash and working-hours checks
+- [x] Every dashboard page on services; realistic generated demo data, no hardcoded numbers
+- [ ] Seed script for the database (load `buildDemoData()` into Postgres)
 - [ ] Email provider for confirmations and sales lead alerts (currently logged)
 - [ ] CSV / PDF export
 

@@ -1,84 +1,70 @@
-"use client"
-
-import {
-  DollarSign,
-  TrendingUp,
-  Users,
-  Calendar,
-  Receipt,
-} from "lucide-react"
+import { CalendarCheck, DollarSign, Gauge, TrendingUp, Users } from "lucide-react"
 import { SummaryCard } from "@/components/shared/summary-card"
 import { RevenueExpensesChart } from "@/components/charts/revenue-expenses-chart"
 import { TopEarnersChart } from "@/components/charts/top-earners-chart"
 import { WeeklyVisitsChart } from "@/components/charts/weekly-visits-chart"
 import { UpcomingAppointments } from "@/components/dashboard/upcoming-appointments"
 import { FeatureGate } from "@/components/plan/feature-gate"
-import {
-  getTodaysRevenue,
-  getMonthlyRevenue,
-  getActiveClientCount,
-  getTodaysAppointments,
-  getDailyCosts,
-} from "@/lib/mock-data"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, formatPercentChange } from "@/lib/utils"
+import { getRequestContext } from "@/server/context"
+import { getDashboardOverview } from "@/server/services/dashboard"
 
-const todaysRevenue = getTodaysRevenue()
-const monthlyRevenue = getMonthlyRevenue()
-const activeClients = getActiveClientCount()
-const todaysAppointments = getTodaysAppointments()
-const dailyCosts = getDailyCosts()
+export default async function DashboardPage() {
+  const data = await getDashboardOverview(await getRequestContext())
+  const { today, month, clients } = data
 
-export default function DashboardPage() {
   return (
     <div>
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
         <SummaryCard
           title="Today's Revenue"
-          value={formatCurrency(todaysRevenue)}
-          change={todaysRevenue ? "+12.5%" : undefined}
-          changeType="positive"
+          value={formatCurrency(today.collected)}
           icon={DollarSign}
-          description="vs last week"
+          description={today.stillBooked > 0 ? `+${formatCurrency(today.stillBooked)} still booked` : "collected today"}
         />
         <SummaryCard
-          title="Monthly Revenue"
-          value={formatCurrency(monthlyRevenue)}
-          change={monthlyRevenue ? "+8.2%" : undefined}
-          changeType="positive"
+          title="Month to Date"
+          value={formatCurrency(month.revenue)}
           icon={TrendingUp}
-          description="vs last month"
+          change={month.change !== null ? formatPercentChange(month.change) : undefined}
+          changeType={month.change === null ? "neutral" : month.change >= 0 ? "positive" : "negative"}
+          description={month.change !== null ? "vs same weekdays 4 weeks ago" : "first day of the month"}
         />
         <SummaryCard
           title="Active Clients"
-          value={activeClients.toString()}
+          value={clients.active.toLocaleString("en-US")}
           icon={Users}
-          description="total registered"
+          description={`visited in 90 days, ${clients.newThisMonth} new this month`}
         />
         <SummaryCard
           title="Appointments Today"
-          value={todaysAppointments.length.toString()}
-          icon={Calendar}
-          description="scheduled"
+          value={today.appointments.toString()}
+          icon={CalendarCheck}
+          description={[
+            `${today.completed} done`,
+            today.inProgress > 0 ? `${today.inProgress} in progress` : null,
+            `${today.remaining} to go`,
+          ]
+            .filter(Boolean)
+            .join(", ")}
         />
         <SummaryCard
-          title="Daily Costs"
-          value={formatCurrency(dailyCosts)}
-          change={dailyCosts ? "-3.1%" : undefined}
-          changeType="positive"
-          icon={Receipt}
-          description="vs last week"
+          title="Booked Today"
+          value={today.utilization !== null ? `${today.utilization}%` : "Closed"}
+          icon={Gauge}
+          description={today.utilization !== null ? "of therapist hours" : "no shifts today"}
         />
       </div>
 
-      {/* Charts Grid */}
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <RevenueExpensesChart />
-        <FeatureGate feature="staffManagement">
-          <TopEarnersChart />
-        </FeatureGate>
-        <WeeklyVisitsChart />
-        <UpcomingAppointments />
+        <RevenueExpensesChart data={data.runningTotals} />
+        {data.topEarners ? (
+          <TopEarnersChart data={data.topEarners} />
+        ) : (
+          <FeatureGate feature="revenueAnalytics">{null}</FeatureGate>
+        )}
+        <WeeklyVisitsChart data={data.weekVisits} />
+        <UpcomingAppointments appointments={data.upcoming} timezone={data.timezone} />
       </div>
     </div>
   )

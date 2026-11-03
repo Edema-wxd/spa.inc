@@ -2,7 +2,7 @@
 // Data access contracts
 //
 // Services depend only on these interfaces. Two implementations exist:
-//   memory  - in-process store seeded from src/lib/mock-data (demo default)
+//   memory  - in-process store seeded from src/server/demo (demo default)
 //   prisma  - PostgreSQL via Prisma (set DATA_SOURCE=prisma)
 // Every method is scoped by organizationId so tenants never see each other.
 // ---------------------------------------------------------------------------
@@ -60,7 +60,7 @@ export interface AppointmentRepository {
     filter?: DateRange & { clientId?: string; staffId?: string }
   ): Promise<Appointment[]>
   get(orgId: string, id: string): Promise<Appointment | null>
-  create(orgId: string, input: AppointmentInput): Promise<Appointment>
+  create(orgId: string, input: AppointmentInput & { duration_minutes: number }): Promise<Appointment>
   update(orgId: string, id: string, input: AppointmentUpdateInput): Promise<Appointment | null>
 }
 

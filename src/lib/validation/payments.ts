@@ -11,7 +11,7 @@ export const paymentSchema = z.object({
   /** Integer cents */
   amount: z.number().int().min(1, "Amount must be greater than 0"),
   payment_method: z.enum(PAYMENT_METHODS, { message: "Please select a payment method" }),
-  payment_date: z.string().min(1, "Please select a date"),
+  payment_date: z.iso.date("Please select a valid date"),
   status: z.enum(PAYMENT_STATUSES).optional(),
   reference_note: z.string().optional(),
 })

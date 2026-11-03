@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ArrowLeft, Mail, Phone, Users } from "lucide-react"
+import { ArrowLeft, CalendarDays, Mail, Phone, Users } from "lucide-react"
 import { EmptyState } from "@/components/shared/empty-state"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,79 +18,34 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { StaffStats } from "@/components/staff/staff-stats"
 import { StaffRevenueChart } from "@/components/staff/staff-revenue-chart"
 import { ScheduleGrid } from "@/components/staff/schedule-grid"
-import {
-  users,
-  appointments,
-  payments,
-  getClientById,
-} from "@/lib/mock-data"
-import {
-  getInitials,
-  formatCurrency,
-  formatPhone,
-  formatDate,
-} from "@/lib/utils"
+import { getInitials, formatCurrency, formatPhone, formatDate } from "@/lib/utils"
+import { hasFeature } from "@/lib/plans"
+import { NotFoundError } from "@/server/errors"
+import { getRequestContext } from "@/server/context"
+import { getStaffProfile } from "@/server/services/users"
 
 interface StaffDetailPageProps {
   params: Promise<{ id: string }>
 }
 
-function getStaffClients(staffId: string) {
-  // Get all completed appointments for this staff
-  const staffAppointments = appointments.filter(
-    (a) => a.staff_id === staffId && a.status === "COMPLETED"
-  )
-
-  // Group by client
-  const clientMap: Record<
-    string,
-    { clientId: string; visitCount: number; lastVisit: string; totalSpent: number }
-  > = {}
-
-  staffAppointments.forEach((apt) => {
-    if (!clientMap[apt.client_id]) {
-      clientMap[apt.client_id] = {
-        clientId: apt.client_id,
-        visitCount: 0,
-        lastVisit: apt.scheduled_at,
-        totalSpent: 0,
-      }
-    }
-
-    clientMap[apt.client_id].visitCount += 1
-
-    // Track the most recent visit
-    if (apt.scheduled_at > clientMap[apt.client_id].lastVisit) {
-      clientMap[apt.client_id].lastVisit = apt.scheduled_at
-    }
-  })
-
-  // Add payment amounts per client-staff
-  payments
-    .filter((p) => p.staff_id === staffId && p.status === "COMPLETED")
-    .forEach((p) => {
-      if (clientMap[p.client_id]) {
-        clientMap[p.client_id].totalSpent += p.amount
-      }
-    })
-
-  // Convert to array and sort by visit count descending
-  return Object.values(clientMap)
-    .map((entry) => {
-      const client = getClientById(entry.clientId)
-      return {
-        ...entry,
-        clientName: client?.full_name || "Unknown Client",
-      }
-    })
-    .sort((a, b) => b.visitCount - a.visitCount)
+async function loadProfile(id: string) {
+  const ctx = await getRequestContext()
+  // The segment layout shows the upgrade prompt on lower plans
+  if (!hasFeature(ctx.plan, "staffManagement")) return "locked" as const
+  try {
+    return await getStaffProfile(ctx, id)
+  } catch (err) {
+    if (err instanceof NotFoundError) return null
+    throw err
+  }
 }
 
 export default async function StaffDetailPage({ params }: StaffDetailPageProps) {
   const { id } = await params
-  const staff = users.find((u) => u.id === id)
+  const profile = await loadProfile(id)
+  if (profile === "locked") return null
 
-  if (!staff) {
+  if (!profile) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20">
         <h1 className="text-2xl font-bold">Staff member not found</h1>
@@ -107,17 +62,24 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
     )
   }
 
-  const staffClients = getStaffClients(staff.id)
+  const { staff, stats, weekly, schedule, clients: staffClients } = profile
 
   return (
     <div className="space-y-6">
-      {/* Back button */}
-      <Button asChild variant="ghost" size="sm">
-        <Link href="/dashboard/staff">
-          <ArrowLeft className="h-4 w-4" />
-          Back to Staff
-        </Link>
-      </Button>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button asChild variant="ghost" size="sm">
+          <Link href="/dashboard/staff">
+            <ArrowLeft className="h-4 w-4" />
+            Back to Staff
+          </Link>
+        </Button>
+        <Button asChild size="sm">
+          <Link href={`/dashboard/calendar?view=week&staff=${staff.id}`}>
+            <CalendarDays className="h-4 w-4" />
+            {stats.upcoming > 0 ? `View calendar (${stats.upcoming} upcoming)` : "View calendar"}
+          </Link>
+        </Button>
+      </div>
 
       {/* Profile card */}
       <Card>
@@ -167,12 +129,12 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6 pt-4">
-          <StaffStats staffId={staff.id} />
-          <StaffRevenueChart staffId={staff.id} />
+          <StaffStats stats={stats} />
+          <StaffRevenueChart data={weekly} />
         </TabsContent>
 
         <TabsContent value="schedule" className="pt-4">
-          <ScheduleGrid staffId={staff.id} />
+          <ScheduleGrid schedule={schedule} />
         </TabsContent>
 
         <TabsContent value="clients" className="pt-4">
@@ -196,16 +158,18 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
                       {staffClients.map((client) => (
                         <TableRow key={client.clientId} className="even:bg-muted/50">
                           <TableCell className="font-medium">
-                            {client.clientName}
+                            <Link href={`/dashboard/clients/${client.clientId}`} className="hover:underline">
+                              {client.clientName}
+                            </Link>
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
-                            {client.visitCount}
+                            {client.visits}
                           </TableCell>
                           <TableCell className="text-muted-foreground">
                             {formatDate(client.lastVisit)}
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
-                            {formatCurrency(client.totalSpent)}
+                            {formatCurrency(client.spent)}
                           </TableCell>
                         </TableRow>
                       ))}

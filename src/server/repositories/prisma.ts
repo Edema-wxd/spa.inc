@@ -212,7 +212,7 @@ export const prismaRepositories: Repositories = {
         data: {
           organizationId: orgId,
           fullName: input.full_name,
-          email: input.email,
+          email: input.email || null,
           phone: input.phone,
           dateOfBirth: optionalDate(input.date_of_birth),
           address: input.address,

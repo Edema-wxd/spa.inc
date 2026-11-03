@@ -11,11 +11,9 @@ import {
   Cell,
 } from "recharts"
 import { ChartWrapper } from "@/components/shared/chart-wrapper"
-import { getRevenueByStaff } from "@/lib/mock-data"
 import { CHART_COLORS } from "@/lib/chart-colors"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, formatCurrencyAxis } from "@/lib/utils"
 
-const data = getRevenueByStaff()
 
 function CustomTooltip({
   active,
@@ -38,7 +36,7 @@ function CustomTooltip({
   )
 }
 
-export function RevenueByStaffChart() {
+export function RevenueByStaffChart({ data }: { data: { name: string; revenue: number }[] }) {
   return (
     <ChartWrapper
       title="Revenue by Staff"
@@ -59,9 +57,7 @@ export function RevenueByStaffChart() {
             tick={{ fontSize: 12 }}
             tickLine={false}
             axisLine={false}
-            tickFormatter={(value: number) =>
-              `$${(value / 100).toLocaleString()}`
-            }
+            tickFormatter={formatCurrencyAxis}
           />
           <Tooltip content={<CustomTooltip />} />
           <Bar dataKey="revenue" radius={[4, 4, 0, 0]}>

@@ -1,6 +1,8 @@
+import "server-only"
+
 import { User } from "@/types"
 
-export const users: User[] = [
+export const usersSeed: User[] = [
   {
     id: "admin-001",
     email: "rebecca.torres@spa-inc.com",

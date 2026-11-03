@@ -2,7 +2,8 @@ import { z } from "zod"
 
 export const clientSchema = z.object({
   full_name: z.string().trim().min(2, "Name must be at least 2 characters"),
-  email: z.email("Please enter a valid email address"),
+  /** Optional: many clients book by phone or WhatsApp only */
+  email: z.union([z.literal(""), z.email("Please enter a valid email address")]).optional(),
   phone: z.string().trim().min(1, "Phone number is required"),
   date_of_birth: z.string().optional(),
   address: z.string().optional(),

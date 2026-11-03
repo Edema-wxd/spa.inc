@@ -14,6 +14,9 @@ const colorMap: Record<string, string> = {
   CANCELLED: "bg-red-100 text-red-700 hover:bg-red-100",
   REFUNDED: "bg-red-100 text-red-700 hover:bg-red-100",
   NO_SHOW: "bg-gray-100 text-gray-600 hover:bg-gray-100",
+  NEW: "bg-sky-100 text-sky-700 hover:bg-sky-100",
+  LAPSED: "bg-orange-100 text-orange-700 hover:bg-orange-100",
+  INACTIVE: "bg-gray-100 text-gray-600 hover:bg-gray-100",
   IN_SPA: "bg-blue-100 text-blue-700 hover:bg-blue-100",
   REMOTE: "bg-purple-100 text-purple-700 hover:bg-purple-100",
 }

@@ -10,10 +10,8 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { ChartWrapper } from "@/components/shared/chart-wrapper"
-import { getTopEarners } from "@/lib/mock-data"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, formatCurrencyAxis } from "@/lib/utils"
 
-const data = getTopEarners(5)
 
 function CustomTooltip({
   active,
@@ -35,7 +33,7 @@ function CustomTooltip({
   )
 }
 
-export function TopEarnersChart() {
+export function TopEarnersChart({ data }: { data: { name: string; total: number; sessions: number }[] }) {
   return (
     <ChartWrapper
       title="Top Earners"
@@ -51,9 +49,7 @@ export function TopEarnersChart() {
             tick={{ fontSize: 12 }}
             tickLine={false}
             axisLine={false}
-            tickFormatter={(value: number) =>
-              `$${(value / 100).toLocaleString()}`
-            }
+            tickFormatter={formatCurrencyAxis}
           />
           <YAxis
             type="category"

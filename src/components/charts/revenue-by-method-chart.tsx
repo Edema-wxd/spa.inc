@@ -10,12 +10,8 @@ import {
   type PieLabelRenderProps,
 } from "recharts"
 import { ChartWrapper } from "@/components/shared/chart-wrapper"
-import { getRevenueByMethod } from "@/lib/mock-data"
 import { CHART_COLORS } from "@/lib/chart-colors"
 import { formatCurrency } from "@/lib/utils"
-
-const data = getRevenueByMethod()
-const total = data.reduce((sum, d) => sum + d.revenue, 0)
 
 const METHOD_LABELS: Record<string, string> = {
   CARD: "Card",
@@ -24,30 +20,28 @@ const METHOD_LABELS: Record<string, string> = {
   OTHER: "Other",
 }
 
+const RADIAN = Math.PI / 180
+
 function CustomTooltip({
   active,
   payload,
+  total,
 }: {
   active?: boolean
-  payload?: Array<{ payload: { method: string; revenue: number } }>
+  payload?: Array<{ payload: { name: string; revenue: number } }>
+  total: number
 }) {
   if (!active || !payload || payload.length === 0) return null
-
-  const { method, revenue } = payload[0].payload
-  const pct = ((revenue / total) * 100).toFixed(1)
+  const { name, revenue } = payload[0].payload
   return (
     <div className="rounded-lg border bg-card p-3 shadow-md">
-      <p className="mb-1 text-sm font-medium">
-        {METHOD_LABELS[method] || method}
-      </p>
+      <p className="mb-1 text-sm font-medium">{METHOD_LABELS[name] || name}</p>
       <p className="text-sm text-muted-foreground">
-        {formatCurrency(revenue)} ({pct}%)
+        {formatCurrency(revenue)} ({total ? ((revenue / total) * 100).toFixed(1) : 0}%)
       </p>
     </div>
   )
 }
-
-const RADIAN = Math.PI / 180
 
 function renderCustomizedLabel(props: PieLabelRenderProps) {
   const cx = Number(props.cx) || 0
@@ -55,7 +49,7 @@ function renderCustomizedLabel(props: PieLabelRenderProps) {
   const midAngle = Number(props.midAngle) || 0
   const outerRadius = Number(props.outerRadius) || 0
   const percent = Number(props.percent) || 0
-  const method = String((props as unknown as Record<string, unknown>).method ?? props.name ?? "")
+  const method = String(props.name ?? "")
 
   const radius = outerRadius + 25
   const x = cx + radius * Math.cos(-midAngle * RADIAN)
@@ -75,7 +69,9 @@ function renderCustomizedLabel(props: PieLabelRenderProps) {
   )
 }
 
-export function RevenueByMethodChart() {
+export function RevenueByMethodChart({ data }: { data: { name: string; revenue: number }[] }) {
+  const total = data.reduce((sum, d) => sum + d.revenue, 0)
+
   return (
     <ChartWrapper
       title="Revenue by Payment Method"
@@ -93,21 +89,16 @@ export function RevenueByMethodChart() {
             innerRadius={60}
             outerRadius={100}
             dataKey="revenue"
-            nameKey="method"
+            nameKey="name"
             label={renderCustomizedLabel}
             labelLine={true}
           >
             {data.map((_, index) => (
-              <Cell
-                key={`cell-${index}`}
-                fill={CHART_COLORS[index % CHART_COLORS.length]}
-              />
+              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip content={<CustomTooltip />} />
-          <Legend
-            formatter={(value: string) => METHOD_LABELS[value] || value}
-          />
+          <Tooltip content={<CustomTooltip total={total} />} />
+          <Legend formatter={(value: string) => METHOD_LABELS[value] || value} />
         </PieChart>
       </ResponsiveContainer>
     </ChartWrapper>

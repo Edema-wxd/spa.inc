@@ -10,7 +10,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Spa.Inc — Dashboard",
+  title: "Spa.Inc | Spa management",
   description: "Admin & Staff Dashboard for Spa.Inc wellness management",
 };
 

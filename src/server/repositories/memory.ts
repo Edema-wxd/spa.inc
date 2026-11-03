@@ -1,14 +1,6 @@
 import "server-only"
 
-import {
-  appointments as seedAppointments,
-  clients as seedClients,
-  expenses as seedExpenses,
-  payments as seedPayments,
-  schedules as seedSchedules,
-  services as seedServices,
-  users as seedUsers,
-} from "@/lib/mock-data"
+import { buildDemoData, buildEmptyData } from "@/server/demo/seed"
 import type {
   Appointment,
   Client,
@@ -53,29 +45,11 @@ function newId(prefix: string) {
   return `${prefix}-${crypto.randomUUID().slice(0, 8)}`
 }
 
+/** NEXT_PUBLIC_DEMO_EMPTY=true starts with no business data, to preview empty states. */
+const DEMO_EMPTY = process.env.NEXT_PUBLIC_DEMO_EMPTY === "true"
+
 function seededStore(): OrgStore {
-  const createdAt = "2024-01-01T00:00:00Z"
-  return {
-    clients: structuredClone(seedClients),
-    users: structuredClone(seedUsers),
-    services: structuredClone(seedServices),
-    appointments: structuredClone(seedAppointments),
-    payments: structuredClone(seedPayments),
-    expenses: structuredClone(seedExpenses),
-    schedules: structuredClone(seedSchedules),
-    locations: [
-      {
-        id: "loc-main",
-        name: "Main Spa",
-        address: null,
-        phone: null,
-        timezone: "UTC",
-        is_active: true,
-        created_at: createdAt,
-        updated_at: createdAt,
-      },
-    ],
-  }
+  return DEMO_EMPTY ? buildEmptyData() : buildDemoData()
 }
 
 function emptyStore(): OrgStore {
@@ -137,7 +111,7 @@ export const memoryRepositories: Repositories = {
       const client: Client = {
         id: newId("client"),
         full_name: input.full_name,
-        email: input.email,
+        email: input.email ?? "",
         phone: input.phone,
         date_of_birth: input.date_of_birth ?? "",
         address: input.address ?? "",

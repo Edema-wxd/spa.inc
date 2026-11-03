@@ -1,8 +1,10 @@
+import "server-only"
+
 import { StaffSchedule } from "@/types"
 
 // day_of_week: 0=Sunday, 1=Monday, ..., 6=Saturday
 
-export const schedules: StaffSchedule[] = [
+export const schedulesSeed: StaffSchedule[] = [
   // Maria Santos (staff-001): Mon-Fri 9:00-17:00, Sat 10:00-14:00
   { id: "sched-001", staff_id: "staff-001", day_of_week: 1, start_time: "09:00", end_time: "17:00", is_available: true, created_at: "2024-03-01T09:00:00Z", updated_at: "2024-03-01T09:00:00Z" },
   { id: "sched-002", staff_id: "staff-001", day_of_week: 2, start_time: "09:00", end_time: "17:00", is_available: true, created_at: "2024-03-01T09:00:00Z", updated_at: "2024-03-01T09:00:00Z" },
