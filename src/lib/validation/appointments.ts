@@ -1,6 +1,9 @@
 import { z } from "zod"
 
-export const APPOINTMENT_STATUSES = ["SCHEDULED", "COMPLETED", "CANCELLED", "NO_SHOW"] as const
+export const APPOINTMENT_STATUSES = ["PENDING_DEPOSIT", "SCHEDULED", "COMPLETED", "CANCELLED", "NO_SHOW"] as const
+
+/** Statuses staff can set from the dashboard (PENDING_DEPOSIT is only set by online booking) */
+export const SETTABLE_STATUSES = ["SCHEDULED", "COMPLETED", "CANCELLED", "NO_SHOW"] as const
 export const LOCATION_TYPES = ["IN_SPA", "REMOTE"] as const
 
 export const appointmentSchema = z.object({
@@ -20,13 +23,15 @@ export const appointmentSchema = z.object({
 export const appointmentUpdateSchema = z.object({
   scheduled_at: z.iso.datetime({ offset: true }).optional(),
   duration_minutes: z.number().int().min(15).max(480).optional(),
-  status: z.enum(APPOINTMENT_STATUSES).optional(),
+  status: z.enum(SETTABLE_STATUSES).optional(),
   staff_id: z.string().optional(),
   location_type: z.enum(LOCATION_TYPES).optional(),
   location_notes: z.string().optional(),
   satisfaction_rating: z.number().int().min(1).max(5).nullable().optional(),
   notes: z.string().optional(),
   allow_outside_hours: z.boolean().optional(),
+  /** When cancelling a booking with a paid deposit; defaults to the cancellation policy */
+  deposit: z.enum(["refund", "keep"]).optional(),
 })
 
 export const availabilityQuerySchema = z.object({

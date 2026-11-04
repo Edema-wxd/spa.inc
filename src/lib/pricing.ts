@@ -56,9 +56,9 @@ export const pricingTiers: PricingTier[] = [
     highlights: [
       "1 admin account",
       `Up to ${formatLimit(PLAN_LIMITS.essentials.clients)} clients`,
-      "Appointments & visit history",
+      "Booking calendar",
+      "Online booking page",
       "Payment logging",
-      "Dashboard overview",
     ],
     cta: { label: `Start ${FREE_TRIAL_DAYS}-day free trial`, href: "/login" },
   },
@@ -73,9 +73,9 @@ export const pricingTiers: PricingTier[] = [
     highlights: [
       `${PLAN_LIMITS.manager.admins} admin accounts`,
       `Up to ${formatLimit(PLAN_LIMITS.manager.clients)} clients`,
-      "Staff directory & schedules",
-      "Revenue analytics",
-      "Expense tracking",
+      "Booking deposits",
+      "WhatsApp confirmations & reminders",
+      "Staff schedules & revenue analytics",
     ],
     cta: { label: "Get started", href: "/login" },
   },
@@ -162,11 +162,14 @@ export const featureGroups: FeatureGroup[] = [
     ],
   },
   {
-    title: "Clients & appointments",
+    title: "Bookings",
     rows: [
-      sameForAll("Client profiles & visit history", true),
-      sameForAll("Appointment tracking", true),
+      sameForAll("Booking calendar with clash checks", true),
+      featureRow("onlineBooking"),
+      featureRow("deposits"),
+      featureRow("whatsappReminders"),
       featureRow("emailConfirmations"),
+      sameForAll("Client profiles & visit history", true),
     ],
   },
   {
@@ -213,24 +216,6 @@ export interface AddOn {
 }
 
 export const addOns: AddOn[] = [
-  {
-    id: "whatsapp",
-    name: "WhatsApp notifications",
-    description: "Booking confirmations and reminders sent straight to clients on WhatsApp.",
-    prices: { USD: 10, NGN: 15000 },
-  },
-  {
-    id: "online-booking",
-    name: "Online booking page",
-    description: "A client-facing page where customers book their own appointments.",
-    prices: { USD: 19, NGN: 25000 },
-  },
-  {
-    id: "paystack",
-    name: "Paystack integration",
-    description: "Accept card and transfer payments online and reconcile them automatically.",
-    prices: { USD: 12, NGN: 20000 },
-  },
   {
     id: "smart-scheduling",
     name: "Smart auto-scheduling",

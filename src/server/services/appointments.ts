@@ -1,15 +1,15 @@
 import "server-only"
 
+import { randomBytes } from "node:crypto"
+import { formatMoney } from "@/lib/booking"
 import { hasFeature } from "@/lib/plans"
 import {
   addDays,
   dateKeyInZone,
   isDateKey,
   minutesInZone,
-  minutesToTime,
   startOfWeek,
   timeToMinutes,
-  weekdayOf,
   type DateKey,
 } from "@/lib/time"
 import type {
@@ -17,17 +17,32 @@ import type {
   AppointmentUpdateInput,
   AvailabilityQuery,
 } from "@/lib/validation/appointments"
-import type { AppointmentStatus, LocationType, StaffSchedule, User } from "@/types"
+import type { AppointmentStatus, BookingSource, DepositStatus, LocationType, StaffSchedule } from "@/types"
+import { withBookingLock } from "@/server/booking-lock"
 import type { DateRange } from "@/server/repositories/types"
 import type { RequestContext } from "@/server/context"
-import { ApiError, BookingConflictError, NotFoundError } from "@/server/errors"
+import { ApiError, NotFoundError } from "@/server/errors"
 import { getRepositories } from "@/server/repositories"
 import { getBusinessClock, getDirectory, listAppointmentsByLocalDate } from "@/server/services/business"
+import { releaseExpiredHolds, settleDeposit, withinFreeCancellation } from "@/server/services/deposits"
+import { sendClientMessage } from "@/server/services/messaging"
 import { sendAppointmentConfirmationEmail } from "@/server/services/notifications"
+import {
+  assertNoConflicts,
+  assertWithinHours,
+  isBlocking,
+  listBookableStaff,
+  loadAvailability,
+  requireBookableStaff,
+  type Slot,
+} from "@/server/services/scheduling"
 
-/** Statuses that occupy a therapist's time. Cancelled and no-show slots are free again. */
-const BLOCKING: AppointmentStatus[] = ["SCHEDULED", "COMPLETED"]
-const SLOT_MINUTES = 15
+export { listBookableStaff } from "@/server/services/scheduling"
+
+/** Secret for a client's manage-booking link. */
+export function newManageToken() {
+  return randomBytes(18).toString("base64url")
+}
 
 export async function listAppointments(
   ctx: RequestContext,
@@ -40,95 +55,15 @@ export async function listAppointments(
 }
 
 // ---------------------------------------------------------------------------
-// Rules
-// ---------------------------------------------------------------------------
-
-/** Therapists who can take bookings: active staff members. */
-export async function listBookableStaff(ctx: RequestContext): Promise<User[]> {
-  const { users } = await getRepositories()
-  return users.list(ctx.organizationId, { role: "STAFF", activeOnly: true })
-}
-
-async function requireBookableStaff(ctx: RequestContext, staffId: string) {
-  const { users } = await getRepositories()
-  const staff = await users.get(ctx.organizationId, staffId)
-  if (!staff || staff.role !== "STAFF") throw new ApiError(422, "VALIDATION_ERROR", "Therapist does not exist")
-  if (!staff.is_active) throw new ApiError(422, "VALIDATION_ERROR", `${staff.full_name} is inactive and can't take bookings`)
-  return staff
-}
-
-function overlaps(startA: number, durationA: number, startB: number, durationB: number) {
-  return startA < startB + durationB * 60_000 && startB < startA + durationA * 60_000
-}
-
-interface Slot {
-  start: Date
-  duration: number
-  staffId: string
-  clientId: string
-  excludeId?: string
-}
-
-/** Throws when the slot clashes with the therapist's or the client's other bookings. */
-async function assertNoConflicts(ctx: RequestContext, slot: Slot, timezone: string) {
-  const day = dateKeyInZone(slot.start, timezone)
-  const sameDay = await listAppointmentsByLocalDate(ctx, timezone, { from: addDays(day, -1), to: addDays(day, 1) })
-  const start = slot.start.getTime()
-  const busy = sameDay.filter((a) => a.id !== slot.excludeId && BLOCKING.includes(a.status))
-  const directory = await getDirectory(ctx)
-
-  const staffClash = busy.find(
-    (a) => a.staff_id === slot.staffId && overlaps(start, slot.duration, Date.parse(a.scheduled_at), a.duration_minutes)
-  )
-  if (staffClash) {
-    throw new BookingConflictError(
-      `${directory.userName(slot.staffId)} is already booked with ${directory.clientName(staffClash.client_id)} at that time.`,
-      staffClash.id
-    )
-  }
-  const clientClash = busy.find(
-    (a) => a.client_id === slot.clientId && overlaps(start, slot.duration, Date.parse(a.scheduled_at), a.duration_minutes)
-  )
-  if (clientClash) {
-    throw new BookingConflictError(
-      `${directory.clientName(slot.clientId)} already has an appointment with ${directory.userName(clientClash.staff_id)} at that time.`,
-      clientClash.id
-    )
-  }
-}
-
-function shiftFor(schedules: StaffSchedule[], staffId: string, day: DateKey) {
-  const weekday = weekdayOf(day)
-  return schedules.find((s) => s.staff_id === staffId && s.day_of_week === weekday && s.is_available)
-}
-
-/** Throws when the slot falls outside the therapist's working hours. */
-async function assertWithinHours(ctx: RequestContext, slot: Slot, timezone: string, staffName: string) {
-  const { schedules } = await getRepositories()
-  const day = dateKeyInZone(slot.start, timezone)
-  const shift = shiftFor(await schedules.listForStaff(ctx.organizationId, slot.staffId), slot.staffId, day)
-  const startMinutes = minutesInZone(slot.start, timezone)
-  if (!shift) {
-    throw new ApiError(422, "OUTSIDE_WORKING_HOURS", `${staffName} doesn't work on that day.`)
-  }
-  if (startMinutes < timeToMinutes(shift.start_time) || startMinutes + slot.duration > timeToMinutes(shift.end_time)) {
-    throw new ApiError(
-      422,
-      "OUTSIDE_WORKING_HOURS",
-      `That time is outside ${staffName}'s hours (${shift.start_time} to ${shift.end_time}).`
-    )
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Create / update
+// Create / update (dashboard)
 // ---------------------------------------------------------------------------
 
 export async function createAppointment(ctx: RequestContext, input: AppointmentInput) {
   const repos = await getRepositories()
-  const [client, service] = await Promise.all([
+  const [client, service, org] = await Promise.all([
     repos.clients.get(ctx.organizationId, input.client_id),
     repos.services.get(ctx.organizationId, input.service_id),
+    repos.organizations.get(ctx.organizationId),
   ])
   if (!client) throw new ApiError(422, "VALIDATION_ERROR", "Client does not exist")
   if (!service || !service.is_active) throw new ApiError(422, "VALIDATION_ERROR", "Service does not exist")
@@ -140,17 +75,23 @@ export async function createAppointment(ctx: RequestContext, input: AppointmentI
   const { timezone } = await getBusinessClock(ctx)
   const duration = input.duration_minutes ?? service.default_duration_minutes
   const slot: Slot = { start: new Date(input.scheduled_at), duration, staffId: staff.id, clientId: client.id }
-  if (!(allow_outside_hours && ctx.role === "ADMIN")) {
-    await assertWithinHours(ctx, slot, timezone, staff.full_name)
-  }
-  await assertNoConflicts(ctx, slot, timezone)
 
-  const appointment = await repos.appointments.create(ctx.organizationId, {
-    ...data,
-    scheduled_at: slot.start.toISOString(),
-    duration_minutes: duration,
+  const appointment = await withBookingLock(ctx.organizationId, async () => {
+    if (!(allow_outside_hours && ctx.role === "ADMIN")) {
+      await assertWithinHours(ctx, slot, timezone, staff.full_name)
+    }
+    await assertNoConflicts(ctx, slot, timezone)
+    return repos.appointments.create(ctx.organizationId, {
+      ...data,
+      scheduled_at: slot.start.toISOString(),
+      duration_minutes: duration,
+      source: "DASHBOARD",
+      // Lets the client manage the booking from the WhatsApp confirmation
+      manage_token: newManageToken(),
+    })
   })
 
+  if (org) await sendClientMessage(ctx, { kind: "BOOKING_CONFIRMATION", org, appointment, client })
   // Email confirmations are an Executive+ feature; lower plans skip silently
   if (hasFeature(ctx.plan, "emailConfirmations") && client.email) {
     await sendAppointmentConfirmationEmail(client, appointment)
@@ -159,8 +100,8 @@ export async function createAppointment(ctx: RequestContext, input: AppointmentI
 }
 
 export async function updateAppointment(ctx: RequestContext, id: string, input: AppointmentUpdateInput) {
-  const { appointments } = await getRepositories()
-  const existing = await appointments.get(ctx.organizationId, id)
+  const repos = await getRepositories()
+  const existing = await repos.appointments.get(ctx.organizationId, id)
   if (!existing || (ctx.role === "STAFF" && existing.staff_id !== ctx.userId)) {
     throw new NotFoundError("Appointment")
   }
@@ -168,39 +109,70 @@ export async function updateAppointment(ctx: RequestContext, id: string, input: 
     throw new ApiError(403, "FORBIDDEN", "Only an admin can move a booking to another therapist")
   }
 
-  const { allow_outside_hours, ...changes } = input
+  const { allow_outside_hours, deposit: depositAction, ...changes } = input
+  const previous = { ...existing }
   const staffId = changes.staff_id ?? existing.staff_id
   const start = new Date(changes.scheduled_at ?? existing.scheduled_at)
   const duration = changes.duration_minutes ?? existing.duration_minutes
-  const status = changes.status ?? existing.status
+  const status: AppointmentStatus = changes.status ?? existing.status
   const moved =
     staffId !== existing.staff_id ||
     start.getTime() !== Date.parse(existing.scheduled_at) ||
     duration !== existing.duration_minutes
-  const reopened = !BLOCKING.includes(existing.status) && BLOCKING.includes(status)
-
-  if (moved || reopened) {
-    const staff = await requireBookableStaff(ctx, staffId)
-    const { timezone } = await getBusinessClock(ctx)
-    const slot: Slot = { start, duration, staffId, clientId: existing.client_id, excludeId: id }
-    if (moved && !(allow_outside_hours && ctx.role === "ADMIN")) {
-      await assertWithinHours(ctx, slot, timezone, staff.full_name)
-    }
-    await assertNoConflicts(ctx, slot, timezone)
-  }
+  const reopened = !isBlocking(existing) && (status === "SCHEDULED" || status === "COMPLETED")
 
   if (changes.status === "COMPLETED" && start.getTime() > Date.now()) {
     throw new ApiError(422, "VALIDATION_ERROR", "An appointment can't be completed before it starts")
   }
 
-  return (await appointments.update(ctx.organizationId, id, {
-    ...changes,
-    ...(changes.scheduled_at && { scheduled_at: start.toISOString() }),
-  }))!
+  const updated = await withBookingLock(ctx.organizationId, async () => {
+    if (moved || reopened) {
+      const staff = await requireBookableStaff(ctx, staffId)
+      const { timezone } = await getBusinessClock(ctx)
+      const slot: Slot = { start, duration, staffId, clientId: existing.client_id, excludeId: id }
+      if (moved && !(allow_outside_hours && ctx.role === "ADMIN")) {
+        await assertWithinHours(ctx, slot, timezone, staff.full_name)
+      }
+      await assertNoConflicts(ctx, slot, timezone)
+    }
+    return (await repos.appointments.update(ctx.organizationId, id, {
+      ...changes,
+      ...(changes.scheduled_at && { scheduled_at: start.toISOString() }),
+      // Staff confirming a booking by hand waives its pending deposit
+      ...(existing.status === "PENDING_DEPOSIT" && status !== "PENDING_DEPOSIT" && { hold_expires_at: null }),
+      // A moved booking gets a fresh reminder
+      ...(moved && { reminder_sent_at: null, confirmed_at: null }),
+    }))!
+  })
+
+  // Deposits follow the status: cancellations refund (or keep, if late), no-shows keep
+  if (status !== previous.status && (status === "CANCELLED" || status === "NO_SHOW")) {
+    const org = await repos.organizations.get(ctx.organizationId)
+    const action =
+      status === "NO_SHOW" ? "keep" : (depositAction ?? (org && !withinFreeCancellation(org, previous) ? "keep" : "refund"))
+    const settled = await settleDeposit(ctx.organizationId, updated, action)
+    const client = await repos.clients.get(ctx.organizationId, updated.client_id)
+    if (status === "CANCELLED" && org && client && Date.parse(updated.scheduled_at) > Date.now()) {
+      await sendClientMessage(ctx, {
+        kind: "CANCELLATION",
+        org,
+        appointment: updated,
+        client,
+        extra: {
+          refund_line: settled
+            ? settled.outcome === "refunded"
+              ? `Your ${formatMoney(settled.deposit.amount, settled.deposit.currency)} deposit has been refunded.`
+              : `As this was within ${org.booking.cancellation_notice_hours} hours, the deposit is kept.`
+            : "",
+        },
+      })
+    }
+  }
+  return updated
 }
 
 // ---------------------------------------------------------------------------
-// Availability
+// Availability (dashboard booking dialog)
 // ---------------------------------------------------------------------------
 
 export interface Availability {
@@ -216,26 +188,14 @@ export async function getAvailability(ctx: RequestContext, query: AvailabilityQu
   const staff = await requireBookableStaff(ctx, query.staffId)
   const service = query.serviceId ? await repos.services.get(ctx.organizationId, query.serviceId) : null
   const duration = query.duration ?? service?.default_duration_minutes ?? 60
-  const clock = await getBusinessClock(ctx)
-
-  const shift = shiftFor(await repos.schedules.listForStaff(ctx.organizationId, staff.id), staff.id, query.date)
-  if (!shift) return { date: query.date, workingHours: null, duration, slots: [] }
-
-  const busy = (await listAppointmentsByLocalDate(ctx, clock.timezone, { from: query.date, to: query.date, staffId: staff.id }))
-    .filter((a) => a.id !== query.excludeId && BLOCKING.includes(a.status))
-    .map((a) => ({ start: minutesInZone(a.scheduled_at, clock.timezone), duration: a.duration_minutes }))
-
-  const open = timeToMinutes(shift.start_time)
-  const close = timeToMinutes(shift.end_time)
-  // No start times in the past
-  const earliest = query.date === clock.todayKey ? Math.ceil((clock.nowMinutes + 1) / SLOT_MINUTES) * SLOT_MINUTES : 0
-  const slots: string[] = []
-  if (query.date >= clock.todayKey) {
-    for (let t = Math.max(open, earliest); t + duration <= close; t += SLOT_MINUTES) {
-      if (!busy.some((b) => t < b.start + b.duration && b.start < t + duration)) slots.push(minutesToTime(t))
-    }
+  await releaseExpiredHolds(ctx.organizationId)
+  const engine = await loadAvailability(ctx, { from: query.date, to: query.date, excludeId: query.excludeId })
+  return {
+    date: query.date,
+    workingHours: engine.shiftOf(staff.id, query.date),
+    duration,
+    slots: engine.slotsFor(staff.id, query.date, duration),
   }
-  return { date: query.date, workingHours: { start: shift.start_time, end: shift.end_time }, duration, slots }
 }
 
 // ---------------------------------------------------------------------------
@@ -264,7 +224,14 @@ export interface CalendarAppointment {
   location_notes: string
   notes: string
   satisfaction_rating: number | null
+  /** Completed payments so far, including any deposit */
+  amount_paid: number
   paid: boolean
+  source: BookingSource
+  deposit: { amount: number; status: DepositStatus } | null
+  /** Client confirmed (e.g. replied 1 on WhatsApp) */
+  confirmed: boolean
+  hold_expires_at: string | null
 }
 
 export interface CalendarData {
@@ -291,6 +258,7 @@ export async function getCalendar(
   params: { view?: string; date?: string; staffId?: string }
 ): Promise<CalendarData> {
   const repos = await getRepositories()
+  await releaseExpiredHolds(ctx.organizationId)
   const clock = await getBusinessClock(ctx)
   const view: CalendarView = params.view === "week" ? "week" : "day"
   const date = isDateKey(params.date) ? params.date : clock.todayKey
@@ -302,18 +270,31 @@ export async function getCalendar(
   const days = view === "week" ? Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(date), i)) : [date]
   const columns = view === "week" ? (selectedStaffId ? [selectedStaffId] : []) : staff.map((s) => s.id)
 
-  const [rows, schedules, payments, directory] = await Promise.all([
+  const [rows, schedules, payments, deposits, directory] = await Promise.all([
     listAppointmentsByLocalDate(ctx, clock.timezone, { from: days[0], to: days[days.length - 1] }),
     Promise.all(staff.map((s) => repos.schedules.listForStaff(ctx.organizationId, s.id))).then((r) => r.flat()),
-    repos.payments.list(ctx.organizationId, { from: days[0], to: days[days.length - 1] }),
+    // Deposits are paid when booking, up to the booking window before the visit
+    repos.payments.list(ctx.organizationId, { from: addDays(days[0], -190), to: days[days.length - 1] }),
+    repos.deposits.list(ctx.organizationId),
     getDirectory(ctx),
   ])
-  const paid = new Set(payments.filter((p) => p.status !== "REFUNDED").map((p) => p.appointment_id))
+  const paidByAppointment = new Map<string, number>()
+  for (const p of payments) {
+    if (p.status === "COMPLETED" && p.appointment_id) {
+      paidByAppointment.set(p.appointment_id, (paidByAppointment.get(p.appointment_id) ?? 0) + p.amount)
+    }
+  }
+  const depositByAppointment = new Map(
+    deposits.filter((d) => d.status !== "EXPIRED").map((d) => [d.appointment_id, d])
+  )
 
   const appointments = rows
     .filter((a) => columns.includes(a.staff_id))
     .map((a): CalendarAppointment => {
       const client = directory.client(a.client_id)
+      const price = directory.service(a.service_id)?.default_price ?? 0
+      const amountPaid = paidByAppointment.get(a.id) ?? 0
+      const deposit = depositByAppointment.get(a.id)
       return {
         id: a.id,
         date: dateKeyInZone(a.scheduled_at, clock.timezone),
@@ -328,12 +309,17 @@ export async function getCalendar(
         client_phone: client?.phone ?? "",
         service_id: a.service_id,
         service_name: directory.serviceName(a.service_id),
-        price: directory.service(a.service_id)?.default_price ?? 0,
+        price,
         location_type: a.location_type,
         location_notes: a.location_notes,
         notes: a.notes,
         satisfaction_rating: a.satisfaction_rating,
-        paid: paid.has(a.id),
+        amount_paid: amountPaid,
+        paid: price > 0 && amountPaid >= price,
+        source: a.source,
+        deposit: deposit ? { amount: deposit.amount, status: deposit.status } : null,
+        confirmed: !!a.confirmed_at,
+        hold_expires_at: a.hold_expires_at,
       }
     })
     .sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start)

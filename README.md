@@ -23,6 +23,8 @@ npm run dev        # http://localhost:3000
 | `/contact-sales` | Enterprise / custom quote form |
 | `/dashboard` | The admin dashboard (no login needed in the demo) |
 | `/dashboard/calendar` | Day view by therapist, week view per therapist; click a free slot to book |
+| `/book/juniper-day-spa` | The demo business's public booking page (deposit checkout is a demo) |
+| `/dashboard/online-booking` | Booking link, deposit and no-show stats, booking rules, WhatsApp message log |
 | `/dashboard/settings?tab=plan` | Switch the demo between plans to see limits and locked features |
 
 ### Scripts
@@ -49,6 +51,12 @@ Copy `.env.example` to `.env.local`. Every variable is optional for the demo.
 | `DATABASE_URL` | Pooled Postgres connection used by the app |
 | `DIRECT_URL` | Direct Postgres connection used by migrations |
 | `NEXT_PUBLIC_DEMO_EMPTY` | `true` starts with no data, to preview every empty state |
+| `APP_URL` | Public base URL for links in messages and payment redirects |
+| `PAYSTACK_SECRET_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Real deposits (demo checkout without them) |
+| `WHATSAPP_*` | WhatsApp Cloud API; without it messages are logged, not sent |
+| `CRON_SECRET` | Protects the hourly reminders job |
+
+Online booking setup (providers, webhooks, WhatsApp templates): [`docs/ONLINE_BOOKING.md`](docs/ONLINE_BOOKING.md).
 | `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY` | Reserved for Supabase Auth (not wired up yet) |
 
 ## Plans and pricing
@@ -66,13 +74,14 @@ these files, so they can't drift apart.
 
 Features by plan:
 
-- **Essentials:** clients, appointments, payments, dashboard overview
-- **Manager:** + staff directory & schedules, revenue analytics, expense tracking
+- **Essentials:** booking calendar, online booking page, clients, payments, dashboard overview
+- **Manager:** + booking deposits, WhatsApp confirmations & reminders, staff directory & schedules,
+  revenue analytics, expense tracking
 - **Executive:** + performance leaderboard, profit & loss reports, email confirmations
 - **Enterprise:** + multi-location, consolidated reporting, guided onboarding
 
-Annual billing is 10% off. Add-ons (WhatsApp notifications, online booking, Paystack, smart
-scheduling, loyalty, PDF reports) are listed as "coming soon".
+Annual billing is 10% off. Add-ons (smart scheduling, loyalty, PDF reports) are listed as
+"coming soon"; online booking, deposits and WhatsApp reminders are now included in the plans.
 
 **Currency.** Prices are shown in USD everywhere except Nigeria, which sees NGN. The country
 comes from the host's geo header (`x-vercel-ip-country` on Vercel, `cf-ipcountry` on
@@ -137,6 +146,15 @@ Every response uses the same shape:
 | GET, POST | `/api/appointments` | POST checks working hours and clashes (409 `BOOKING_CONFLICT`, 422 `OUTSIDE_WORKING_HOURS`); emails a confirmation on Executive+ |
 | PUT | `/api/appointments/[id]` | Reschedule, reassign or change status; the same checks apply |
 | GET | `/api/availability` | `?staffId=&date=&serviceId=`: free start times in the business timezone |
+| GET, PUT | `/api/online-booking` | Booking settings, stats and message log; PUT saves the rules |
+| POST | `/api/online-booking/reminders` | Send due WhatsApp reminders now (Manager+) |
+| GET | `/api/public/[slug]/days`, `/api/public/[slug]/availability` | Public: free days and times (`staffId=any` merges therapists) |
+| POST | `/api/public/[slug]/bookings` | Public: book; returns the manage URL and a deposit checkout URL |
+| POST | `/api/public/[slug]/bookings/[token]/cancel` | Public: cancel under the policy (refund or keep the deposit) |
+| GET | `/api/public/[slug]/bookings/[token]/ics` | Public: add to calendar |
+| POST | `/api/webhooks/paystack`, `/api/webhooks/stripe` | Signature-checked payment webhooks |
+| GET, POST | `/api/webhooks/whatsapp` | Meta handshake and client replies |
+| GET | `/api/cron/reminders` | Hourly job (Bearer `CRON_SECRET`) |
 | GET, POST | `/api/payments` | |
 | GET | `/api/payments/summary` | `?period=daily\|weekly\|monthly&from=&to=` |
 | GET, POST | `/api/expenses` | Admin, Manager+ |
@@ -167,6 +185,7 @@ The full plan, with action steps for each item, is in [`docs/ACTION_PLAN.md`](do
 - [ ] Billing checkout and webhooks (Paystack for NGN, a USD provider for everyone else)
 - [x] Booking calendar with clash and working-hours checks
 - [x] Every dashboard page on services; realistic generated demo data, no hardcoded numbers
+- [x] Public booking page with deposits (Paystack / Stripe) and WhatsApp reminders
 - [ ] Seed script for the database (load `buildDemoData()` into Postgres)
 - [ ] Email provider for confirmations and sales lead alerts (currently logged)
 - [ ] CSV / PDF export

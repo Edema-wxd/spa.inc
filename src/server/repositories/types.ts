@@ -9,8 +9,14 @@
 
 import type {
   Appointment,
+  AppointmentStatus,
+  BookingSettings,
+  BookingSource,
   Client,
+  Deposit,
   Expense,
+  Message,
+  Organization,
   Location,
   Payment,
   SalesLead,
@@ -32,10 +38,28 @@ export interface DateRange {
   to?: string
 }
 
+/** Fields only the system sets (online booking, deposits, reminders). */
+export interface AppointmentSystemFields {
+  status?: AppointmentStatus
+  source?: BookingSource
+  hold_expires_at?: string | null
+  confirmed_at?: string | null
+  reminder_sent_at?: string | null
+  manage_token?: string | null
+}
+
+export type AppointmentCreateData = Omit<AppointmentInput, "allow_outside_hours"> & {
+  duration_minutes: number
+} & AppointmentSystemFields
+
+export type AppointmentPatch = Omit<AppointmentUpdateInput, "status" | "allow_outside_hours"> & AppointmentSystemFields
+
 export interface ClientRepository {
   list(orgId: string, filter?: { search?: string }): Promise<Client[]>
   get(orgId: string, id: string): Promise<Client | null>
   count(orgId: string): Promise<number>
+  /** Match by phone number, ignoring formatting (compares the last 10 digits). */
+  findByPhone(orgId: string, phone: string): Promise<Client | null>
   create(orgId: string, input: ClientInput): Promise<Client>
   update(orgId: string, id: string, input: ClientUpdateInput): Promise<Client | null>
   delete(orgId: string, id: string): Promise<boolean>
@@ -57,11 +81,12 @@ export interface ServiceRepository {
 export interface AppointmentRepository {
   list(
     orgId: string,
-    filter?: DateRange & { clientId?: string; staffId?: string }
+    filter?: DateRange & { clientId?: string; staffId?: string; status?: AppointmentStatus }
   ): Promise<Appointment[]>
   get(orgId: string, id: string): Promise<Appointment | null>
-  create(orgId: string, input: AppointmentInput & { duration_minutes: number }): Promise<Appointment>
-  update(orgId: string, id: string, input: AppointmentUpdateInput): Promise<Appointment | null>
+  getByManageToken(orgId: string, token: string): Promise<Appointment | null>
+  create(orgId: string, input: AppointmentCreateData): Promise<Appointment>
+  update(orgId: string, id: string, input: AppointmentPatch): Promise<Appointment | null>
 }
 
 export interface PaymentRepository {
@@ -69,7 +94,9 @@ export interface PaymentRepository {
     orgId: string,
     filter?: DateRange & { clientId?: string; staffId?: string }
   ): Promise<Payment[]>
+  get(orgId: string, id: string): Promise<Payment | null>
   create(orgId: string, input: PaymentInput): Promise<Payment>
+  update(orgId: string, id: string, input: Partial<Pick<Payment, "status" | "reference_note">>): Promise<Payment | null>
 }
 
 export interface ExpenseRepository {
@@ -91,6 +118,35 @@ export interface LocationRepository {
   create(orgId: string, input: LocationInput): Promise<Location>
 }
 
+export interface OrganizationRepository {
+  get(orgId: string): Promise<Organization | null>
+  /** Public booking pages address a business by slug (not tenant-scoped by design). */
+  getBySlug(slug: string): Promise<Organization | null>
+  /** Every organization, for scheduled jobs. */
+  listAll(): Promise<Organization[]>
+  updateBookingSettings(orgId: string, settings: BookingSettings): Promise<Organization | null>
+}
+
+export type DepositCreateData = Omit<Deposit, "id" | "created_at" | "updated_at">
+
+export interface DepositRepository {
+  list(orgId: string, filter?: { appointmentId?: string; status?: Deposit["status"] }): Promise<Deposit[]>
+  get(orgId: string, id: string): Promise<Deposit | null>
+  create(orgId: string, input: DepositCreateData): Promise<Deposit>
+  update(orgId: string, id: string, input: Partial<DepositCreateData>): Promise<Deposit | null>
+  /** Payment webhooks only know the provider reference, so this one searches every organization. */
+  findByReference(reference: string): Promise<{ organizationId: string; deposit: Deposit } | null>
+}
+
+export type MessageCreateData = Omit<Message, "id" | "created_at">
+
+export interface MessageRepository {
+  list(orgId: string, filter?: { appointmentId?: string; limit?: number }): Promise<Message[]>
+  create(orgId: string, input: MessageCreateData): Promise<Message>
+  /** Inbound WhatsApp replies only carry the phone number; find the conversation it belongs to. */
+  findLatestOutboundTo(to: string): Promise<{ organizationId: string; message: Message } | null>
+}
+
 export interface SalesLeadRepository {
   create(input: SalesLeadInput & { countryCode: string | null }): Promise<SalesLead>
 }
@@ -104,5 +160,8 @@ export interface Repositories {
   expenses: ExpenseRepository
   schedules: ScheduleRepository
   locations: LocationRepository
+  organizations: OrganizationRepository
+  deposits: DepositRepository
+  messages: MessageRepository
   salesLeads: SalesLeadRepository
 }

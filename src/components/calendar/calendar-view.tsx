@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { CalendarPlus, ChevronLeft, ChevronRight, CreditCard, MapPin } from "lucide-react"
+import { CalendarPlus, CheckCheck, ChevronLeft, ChevronRight, CreditCard, Globe, Hourglass, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
@@ -27,6 +27,7 @@ const HOUR_PX = 64
 const SLOT_MINUTES = 30
 
 const STATUS_STYLES: Record<CalendarAppointment["status"], string> = {
+  PENDING_DEPOSIT: "border-amber-400 border-dashed bg-amber-50 text-amber-900 hover:bg-amber-100",
   SCHEDULED: "border-spa-accent bg-spa-light text-spa-primary hover:bg-spa-light/80",
   COMPLETED: "border-emerald-500 bg-emerald-50 text-emerald-900 hover:bg-emerald-100",
   CANCELLED: "border-gray-300 bg-gray-50 text-gray-500 line-through opacity-70",
@@ -163,7 +164,7 @@ export function CalendarView({
     data.view === "day" ? data.columns.filter((id) => !columns.some((c) => c.staffId === id)).map(staffName) : []
 
   // Summary for the visible range
-  const live = visible.filter((a) => a.status === "SCHEDULED" || a.status === "COMPLETED")
+  const live = visible.filter((a) => a.status === "SCHEDULED" || a.status === "COMPLETED" || a.status === "PENDING_DEPOSIT")
   const bookedMinutes = live.reduce((sum, a) => sum + a.duration, 0)
   const shiftMinutes = columns.reduce((sum, c) => sum + (c.shift ? c.shift.end - c.shift.start : 0), 0)
   const bookedValue = live.reduce((sum, a) => sum + a.price, 0)
@@ -333,7 +334,7 @@ export function CalendarView({
                     // Only offer slots that no live booking covers
                     const taken = items.some(
                       (a) =>
-                        (a.status === "SCHEDULED" || a.status === "COMPLETED") &&
+                        (a.status === "SCHEDULED" || a.status === "COMPLETED" || a.status === "PENDING_DEPOSIT") &&
                         t < a.start + a.duration &&
                         a.start < t + SLOT_MINUTES
                     )
@@ -391,6 +392,9 @@ export function CalendarView({
                         >
                           <p className="flex items-center gap-1 font-semibold">
                             <span className="truncate">{a.client_name}</span>
+                            {a.status === "PENDING_DEPOSIT" && <Hourglass className="h-3 w-3 shrink-0" aria-label="Awaiting deposit" />}
+                            {a.source === "ONLINE" && <Globe className="h-3 w-3 shrink-0" aria-label="Booked online" />}
+                            {a.confirmed && a.status === "SCHEDULED" && <CheckCheck className="h-3 w-3 shrink-0" aria-label="Client confirmed" />}
                             {a.paid && <CreditCard className="h-3 w-3 shrink-0" aria-label="Paid" />}
                             {a.location_type === "REMOTE" && <MapPin className="h-3 w-3 shrink-0" aria-label="Mobile visit" />}
                           </p>
@@ -418,6 +422,7 @@ export function CalendarView({
 
       <p className="text-xs text-muted-foreground">
         Times shown in {data.timezone.replace(/_/g, " ")}. Click an empty slot to book it, or a booking to check out, reschedule or cancel.
+        Dashed amber: booked online, waiting for the deposit.
       </p>
 
       {draft && (

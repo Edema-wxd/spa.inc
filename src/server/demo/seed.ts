@@ -1,21 +1,28 @@
 import "server-only"
 
+import { DEFAULT_BOOKING_SETTINGS, depositFor } from "@/lib/booking"
+import { toE164 } from "@/lib/phone"
 import {
   addDays,
   dateKeyInZone,
   daysBetween,
   formatDateKey,
+  formatInZone,
   minutesToTime,
   monthsBefore,
   weekdayOf,
   zonedTimeToUtc,
   type DateKey,
 } from "@/lib/time"
+import { renderMessage, REPLIES } from "@/server/services/message-templates"
 import type {
   Appointment,
   Client,
+  Deposit,
   Expense,
   Location,
+  Message,
+  Organization,
   Payment,
   PaymentMethod,
   Service,
@@ -49,7 +56,16 @@ export interface DemoData {
   expenses: Expense[]
   schedules: StaffSchedule[]
   locations: Location[]
+  organization: Organization
+  deposits: Deposit[]
+  messages: Message[]
 }
+
+export const DEMO_SLUG = "juniper-day-spa"
+const BUSINESS_NAME = "Juniper Day Spa"
+/** Online booking with a $20 deposit went live this many days ago */
+const ONLINE_LAUNCH_DAYS = 120
+const DEMO_DEPOSIT_CENTS = 2000
 
 const COMMISSION_RATE = 0.45
 const CARD_FEE_RATE = 0.0275
@@ -281,6 +297,7 @@ function buildAppointments(
   const historyDays = daysBetween(startKey, todayKey)
   const endKey = addDays(todayKey, BOOKED_AHEAD_DAYS)
   const lastVisit = new Map<string, number>()
+  const launch = zonedTimeToUtc(addDays(todayKey, -ONLINE_LAUNCH_DAYS), "09:00", DEMO_TIMEZONE).getTime()
   let seq = 0
 
   for (let key = startKey; key <= endKey; key = addDays(key, 1)) {
@@ -351,16 +368,29 @@ function buildAppointments(
         const end = new Date(start.getTime() + duration * 60_000)
         const remote = MOBILE_STAFF.has(member.id) && rng.chance(0.3)
 
+        const leadDays = rng.int(0, 16)
+        const createdAt = new Date(Math.min(now.getTime(), start.getTime() - leadDays * 86_400_000 - rng.int(1, 600) * 60_000))
+
+        // After launch, a growing share of clients book themselves online and pay a deposit
+        const sinceLaunch = createdAt.getTime() - launch
+        const online = sinceLaunch >= 0 && rng.chance(0.25 + 0.2 * Math.min(1, sinceLaunch / (now.getTime() - launch)))
+
+        // Deposits cut no-shows: about 1% online vs 3.5% for bookings without one
         let status: Appointment["status"] = "SCHEDULED"
         const roll = rng.next()
         if (end <= now) {
-          status = roll < 0.06 ? "CANCELLED" : roll < 0.095 ? "NO_SHOW" : "COMPLETED"
+          const cancelled = online ? 0.05 : 0.06
+          const noShow = cancelled + (online ? 0.01 : 0.035)
+          status = roll < cancelled ? "CANCELLED" : roll < noShow ? "NO_SHOW" : "COMPLETED"
         } else if (roll < 0.03) {
           status = "CANCELLED"
         }
 
-        const leadDays = rng.int(0, 16)
-        const createdAt = new Date(Math.min(now.getTime(), start.getTime() - leadDays * 86_400_000 - rng.int(1, 600) * 60_000))
+        // Day-before WhatsApp reminders started with online booking
+        const reminderAt = start.getTime() - 24 * 3_600_000
+        const reminded =
+          reminderAt >= launch && reminderAt <= now.getTime() && reminderAt > createdAt.getTime() && status !== "CANCELLED"
+        const confirmedAt = reminded && rng.chance(0.45) ? reminderAt + rng.int(5, 240) * 60_000 : null
 
         seq += 1
         appointments.push({
@@ -375,6 +405,11 @@ function buildAppointments(
           location_notes: remote ? rng.pick(REMOTE_NOTES) : "",
           satisfaction_rating: status === "COMPLETED" && rng.chance(0.55) ? pickRating(rng) : null,
           notes: rng.pick(APPOINTMENT_NOTES),
+          source: online ? "ONLINE" : "DASHBOARD",
+          hold_expires_at: null,
+          confirmed_at: confirmedAt !== null && confirmedAt <= now.getTime() ? new Date(confirmedAt).toISOString() : null,
+          reminder_sent_at: reminded ? new Date(reminderAt).toISOString() : null,
+          manage_token: sinceLaunch >= 0 ? token(rng) : null,
           created_at: createdAt.toISOString(),
           updated_at: (status === "SCHEDULED" ? createdAt : end).toISOString(),
         })
@@ -384,6 +419,10 @@ function buildAppointments(
     }
   }
   return appointments
+}
+
+function token(rng: Random) {
+  return Array.from({ length: 24 }, () => rng.int(0, 15).toString(16)).join("")
 }
 
 function pickRating(rng: Random) {
@@ -408,14 +447,57 @@ function pickMethod(rng: Random): PaymentMethod {
 function buildPayments(rng: Random, appointments: Appointment[], services: Service[], todayKey: DateKey) {
   const price = new Map(services.map((s) => [s.id, s.default_price]))
   const payments: Payment[] = []
+  const deposits: Deposit[] = []
   let seq = 0
+  let depositSeq = 0
 
   for (const apt of appointments) {
     const dateKey = dateKeyInZone(apt.scheduled_at, DEMO_TIMEZONE)
     const end = new Date(new Date(apt.scheduled_at).getTime() + apt.duration_minutes * 60_000).toISOString()
 
+    // Online bookings paid a deposit when they booked; it comes off the bill
+    let depositPaid = 0
+    if (apt.source === "ONLINE") {
+      depositPaid = depositFor(price.get(apt.service_id) ?? 0, { deposit_type: "FIXED", deposit_value: DEMO_DEPOSIT_CENTS })
+      // Cancellations with enough notice were refunded; late ones and no-shows kept the deposit
+      const refunded = apt.status === "CANCELLED" && rng.chance(0.75)
+      const kept = apt.status === "NO_SHOW" || (apt.status === "CANCELLED" && !refunded)
+      seq += 1
+      const paymentId = `pay-${String(seq).padStart(5, "0")}`
+      payments.push({
+        id: paymentId,
+        appointment_id: apt.id,
+        client_id: apt.client_id,
+        staff_id: apt.staff_id,
+        amount: depositPaid,
+        payment_method: "CARD",
+        payment_date: dateKeyInZone(apt.created_at, DEMO_TIMEZONE),
+        status: refunded ? "REFUNDED" : "COMPLETED",
+        reference_note: refunded ? "Online deposit (refunded)" : kept ? "Online deposit (kept)" : "Online deposit",
+        created_at: apt.created_at,
+        updated_at: refunded || kept ? apt.updated_at : apt.created_at,
+      })
+      depositSeq += 1
+      deposits.push({
+        id: `dep-${String(depositSeq).padStart(5, "0")}`,
+        appointment_id: apt.id,
+        client_id: apt.client_id,
+        amount: depositPaid,
+        currency: "USD",
+        provider: "DEMO",
+        status: refunded ? "REFUNDED" : kept ? "FORFEITED" : "PAID",
+        provider_reference: `demo_${apt.id}`,
+        checkout_url: null,
+        payment_id: paymentId,
+        paid_at: apt.created_at,
+        created_at: apt.created_at,
+        updated_at: apt.updated_at,
+      })
+      if (refunded) depositPaid = 0
+    }
+
     if (apt.status === "COMPLETED") {
-      let amount = price.get(apt.service_id) ?? 0
+      let amount = (price.get(apt.service_id) ?? 0) - depositPaid
       let note = ""
       if (rng.chance(0.07)) {
         amount += rng.pick([1500, 2000, 2500])
@@ -437,7 +519,7 @@ function buildPayments(rng: Random, appointments: Appointment[], services: Servi
         created_at: end,
         updated_at: end,
       })
-    } else if (apt.status === "NO_SHOW" && rng.chance(0.4)) {
+    } else if (apt.status === "NO_SHOW" && apt.source === "DASHBOARD" && rng.chance(0.4)) {
       seq += 1
       payments.push({
         id: `pay-${String(seq).padStart(5, "0")}`,
@@ -454,7 +536,62 @@ function buildPayments(rng: Random, appointments: Appointment[], services: Servi
       })
     }
   }
-  return payments
+  return { payments, deposits }
+}
+
+// ---------------------------------------------------------------------------
+// Messages: the last week of confirmations, reminders and replies
+// ---------------------------------------------------------------------------
+
+function buildMessages(
+  appointments: Appointment[],
+  clients: Client[],
+  users: User[],
+  services: Service[],
+  now: Date
+) {
+  const clientById = new Map(clients.map((c) => [c.id, c]))
+  const userById = new Map(users.map((u) => [u.id, u]))
+  const serviceById = new Map(services.map((s) => [s.id, s]))
+  const base = process.env.APP_URL ?? "http://localhost:3000"
+  const since = now.getTime() - 7 * 86_400_000
+  const messages: Message[] = []
+  let seq = 0
+  const push = (m: Omit<Message, "id">) => {
+    seq += 1
+    messages.push({ id: `msg-${String(seq).padStart(5, "0")}`, ...m })
+  }
+
+  for (const apt of appointments) {
+    const start = Date.parse(apt.scheduled_at)
+    if (start < since || start > now.getTime() + 3 * 86_400_000) continue
+    const client = clientById.get(apt.client_id)
+    if (!client?.phone) continue
+    const to = toE164(client.phone, "US")
+    const vars = {
+      first_name: client.full_name.split(" ")[0],
+      business: BUSINESS_NAME,
+      service: serviceById.get(apt.service_id)?.name ?? "your appointment",
+      staff: userById.get(apt.staff_id)?.full_name.split(" ")[0] ?? "your therapist",
+      date: formatInZone(apt.scheduled_at, DEMO_TIMEZONE, { weekday: "short", month: "short", day: "numeric" }),
+      time: formatInZone(apt.scheduled_at, DEMO_TIMEZONE, { hour: "numeric", minute: "2-digit" }),
+      when: "tomorrow",
+      link: apt.manage_token ? `${base}/book/${DEMO_SLUG}/booking/${apt.manage_token}` : `${base}/book/${DEMO_SLUG}`,
+    }
+    const common = { appointment_id: apt.id, client_id: client.id, channel: "WHATSAPP" as const, to, provider_message_id: null, error: null }
+
+    if (apt.source === "ONLINE" && Date.parse(apt.created_at) >= since) {
+      push({ ...common, kind: "BOOKING_CONFIRMATION", direction: "OUTBOUND", status: "SIMULATED", body: renderMessage("BOOKING_CONFIRMATION", vars).body, created_at: apt.created_at })
+    }
+    if (apt.reminder_sent_at && Date.parse(apt.reminder_sent_at) >= since) {
+      push({ ...common, kind: "REMINDER", direction: "OUTBOUND", status: "SIMULATED", body: renderMessage("REMINDER", vars).body, created_at: apt.reminder_sent_at })
+      if (apt.confirmed_at) {
+        push({ ...common, kind: "REPLY", direction: "INBOUND", status: "RECEIVED", body: "1", created_at: apt.confirmed_at })
+        push({ ...common, kind: "REPLY", direction: "OUTBOUND", status: "SIMULATED", body: REPLIES.confirmed(vars), created_at: new Date(Date.parse(apt.confirmed_at) + 2000).toISOString() })
+      }
+    }
+  }
+  return messages
 }
 
 // ---------------------------------------------------------------------------
@@ -569,25 +706,47 @@ export function buildDemoData(now = new Date()): DemoData {
 
   const clientProfiles = buildClients(rng, startKey, todayKey, therapists.map((s) => s.id), services)
   const appointments = buildAppointments(rng, startKey, todayKey, now, therapists, schedules, services, clientProfiles)
-  const payments = buildPayments(rng, appointments, services, todayKey)
+  const { payments, deposits } = buildPayments(rng, appointments, services, todayKey)
   const expenses = buildExpenses(rng, startKey, todayKey, payments, therapists)
+  const clients = clientProfiles.map((p) => p.client)
+  const messages = buildMessages(appointments, clients, users, services, now)
 
   return {
     users,
-    clients: clientProfiles.map((p) => p.client),
+    clients,
     services,
     appointments: appointments.sort((a, b) => b.scheduled_at.localeCompare(a.scheduled_at)),
     payments: payments.sort((a, b) => b.payment_date.localeCompare(a.payment_date)),
     expenses,
     schedules,
     locations: [demoLocation()],
+    organization: demoOrganization({
+      deposit_type: "FIXED",
+      deposit_value: DEMO_DEPOSIT_CENTS,
+      welcome_message: "Massage and bodywork on South Lamar. Book in under a minute, pay a small deposit, and get a WhatsApp reminder the day before.",
+    }),
+    deposits,
+    messages,
+  }
+}
+
+function demoOrganization(booking: Partial<Organization["booking"]> = {}): Organization {
+  return {
+    id: "org-demo",
+    name: BUSINESS_NAME,
+    slug: DEMO_SLUG,
+    country_code: "US",
+    currency: "USD",
+    booking: { ...DEFAULT_BOOKING_SETTINGS, ...booking },
+    created_at: "2024-01-15T09:00:00Z",
+    updated_at: "2024-01-15T09:00:00Z",
   }
 }
 
 function demoLocation(): Location {
   return {
     id: "loc-main",
-    name: "Spa.Inc Wellness Center",
+    name: BUSINESS_NAME,
     address: "1100 S Lamar Blvd, Austin, TX 78704",
     phone: "5125550100",
     timezone: DEMO_TIMEZONE,
@@ -609,5 +768,8 @@ export function buildEmptyData(): DemoData {
     expenses: [],
     schedules: [],
     locations: [demoLocation()],
+    organization: demoOrganization(),
+    deposits: [],
+    messages: [],
   }
 }

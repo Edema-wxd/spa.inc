@@ -7,7 +7,7 @@ work, in order. Each item lists the action steps, the files involved and how we 
 | # | Item | Status |
 |---|------|--------|
 | 1 | Calendar and booking | **Done** (follow-ups listed) |
-| 2 | Public booking page with deposits and WhatsApp reminders | Not started |
+| 2 | Public booking page with deposits and WhatsApp reminders | **Done** (needs provider keys to go live) |
 | 3 | Real sign-up and onboarding | Not started |
 | 4 | Pricing and currency rework | Not started |
 | 5 | Honest demo on real services | **Done** (follow-ups listed) |
@@ -70,35 +70,64 @@ and a browser run that books through the dialog and opens the sheet. No console 
 
 ---
 
-## 2. Public booking page with deposits and WhatsApp reminders
+## 2. Public booking page with deposits and WhatsApp reminders (done)
 
 **Why:** this is the hook. "No-shows cost you ₦X a month, here is ₦Y back." Every client who
-books sees the spa's page and our brand, which is the growth loop. Make it core, not an add-on.
+books sees the spa's page and our brand, which is the growth loop. Made core, not an add-on.
 
-**Action steps**
+**What shipped** (setup guide: [`docs/ONLINE_BOOKING.md`](ONLINE_BOOKING.md))
 
-1. Add `slug` based public routes: `/book/[orgSlug]` (service list) and
-   `/book/[orgSlug]/[serviceId]` (therapist and time). Reuse `getAvailability` and the clash
-   rules from item 1; add an "any therapist" option that merges availability.
-2. Public API: `GET /api/public/[orgSlug]/availability`, `POST /api/public/[orgSlug]/bookings`.
-   No session; rate limit by IP and phone; require a phone number; create or match the client by
-   phone.
-3. Deposits: add `deposit_amount` and `deposit_policy` to `services` (fixed or percent), and a
-   `deposits` table (appointment, amount, status, provider reference). Paystack for NGN
-   (initialize transaction, then verify via webhook `POST /api/webhooks/paystack`), Stripe for
-   USD. A booking stays `PENDING_DEPOSIT` until the webhook confirms; release the slot after
-   15 minutes unpaid.
-4. Reminders: a `notifications` table and a scheduled job (Vercel Cron or Supabase scheduled
-   function) that sends a confirmation on booking, a reminder 24 hours before and a "reply 1 to
-   confirm, 2 to reschedule" message. WhatsApp Business Cloud API first, SMS fallback, email
-   last. Replace the stubs in `src/server/services/notifications.ts`.
-5. Cancellation policy: free cancellation until N hours before, otherwise the deposit is kept.
-   Show the policy on the booking page and in the reminder.
-6. Embeddable button and link for Instagram bio and WhatsApp catalog.
-7. Dashboard: a "No-shows prevented" card (no-show rate before and after deposits).
+- `/book/[slug]`: mobile-first booking flow. Treatment, then therapist ("First available" merges
+  everyone's free times and assigns the therapist with the most room that day), then a day strip
+  showing only days with space, then times, then name, WhatsApp number, optional email and notes,
+  with the cancellation policy to accept. "Booking by Spa.Inc" footer links back to pricing.
+- Public API under `/api/public/[slug]/`: `days`, `availability`, `bookings`, and per booking
+  `cancel`, `demo-pay` and `ics` (add to calendar). Rate limited per IP and per phone, honeypot
+  field, minimum notice and booking window enforced, slot re-checked under a per-business lock.
+  Returning clients are matched by phone number in any format.
+- Deposits: one rule per business (none, fixed amount or percent of the price). Bookings with a
+  deposit are `PENDING_DEPOSIT` and hold the slot for `hold_minutes` (30 by default); unpaid
+  holds are released automatically. Paid deposits become a Payment and come off the bill at
+  check-out. Cancelling at least `cancellation_notice_hours` ahead refunds the deposit through the
+  provider; later cancellations and no-shows keep it. Staff can choose "refund" or "keep" when
+  they cancel, confirm a pending booking without a deposit, or release the slot.
+- Providers: Paystack for NGN, Stripe Checkout for USD (no SDK, plain HTTPS), and a labelled demo
+  checkout when no keys are set. Payment is only confirmed by a signature-checked webhook or a
+  server-side verification call, never by the return URL alone.
+- WhatsApp Cloud API: approved templates for confirmation, deposit request, reminder and
+  cancellation; inbound webhook handles "1" (confirms) and "2" (sends the manage link). Without
+  credentials, messages are recorded as SIMULATED in the message log, never silently dropped.
+- Reminders: hourly job (`vercel.json` -> `GET /api/cron/reminders`, `CRON_SECRET`), also
+  runnable from the dashboard. Each booking is reminded once.
+- `/book/[slug]/booking/[token]`: the client's manage page (pay deposit with countdown, add to
+  calendar, cancel with the policy spelled out).
+- Dashboard: `/dashboard/online-booking` with the share link, WhatsApp share and website
+  button snippet; stats (share booked online, no-show rate with vs without deposit, deposits
+  kept, share confirmed on WhatsApp); provider status; booking rules form; message log.
+  The calendar shows online bookings, pending deposits (dashed amber) and confirmations.
+- Plans: online booking on every plan; deposits and WhatsApp messages from Manager up. The
+  WhatsApp, online booking and Paystack add-ons were removed from the pricing page because they
+  are now included.
+- Demo data: online booking "launched" 120 days ago in the seed. In the last 90 days online
+  bookings with a deposit no-show about 1.4% of the time vs about 3.4% without.
 
-**Done when:** a client can book and pay a deposit from a phone in under a minute, the booking
-appears on the calendar, and the reminder arrives on WhatsApp.
+**Verified:** 54 scripted checks against the running app (holds, double booking, demo payment,
+spoofed return URLs, early and late cancellation, phone matching, honeypot, policy, booking
+window, IP rate limit, calendar file, Stripe and Paystack signatures and replay window, WhatsApp
+handshake, signature and "1" reply, admin settings and plan gating, reminder idempotency, cron
+auth, pending holds blocking dashboard bookings) plus a phone-sized browser run of the whole flow.
+The original 32 booking checks still pass.
+
+**Follow-ups**
+
+1. Real-world test with Paystack and Stripe test keys and a WhatsApp test number; the adapters
+   follow the providers' documented APIs but have only run against mocks here.
+2. Per-business WhatsApp numbers (today one platform number; replies are matched by phone).
+3. SMS fallback (Termii in Nigeria, Twilio elsewhere) and email confirmations (Resend).
+4. Per-service deposits and deposit-free services; packages and gift cards.
+5. Client self-reschedule on the manage page (today: cancel and book again).
+6. Shared rate-limit store and the Postgres exclusion constraint for multi-instance deployments.
+7. Show prices in the business currency across the dashboard (item 4).
 
 ---
 

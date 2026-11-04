@@ -35,3 +35,13 @@ export async function getRequestContext(): Promise<RequestContext> {
     plan: await getCurrentPlan(),
   }
 }
+
+/**
+ * Context for requests with no signed-in user: the public booking page,
+ * payment webhooks and scheduled jobs. Only the online-booking, deposit and
+ * messaging services use it, and only for the organization the request is
+ * about. Demo: the plan still comes from the cookie (or the default).
+ */
+export async function getSystemContext(organizationId: string): Promise<RequestContext> {
+  return { organizationId, userId: "system", role: "ADMIN", plan: await getCurrentPlan() }
+}

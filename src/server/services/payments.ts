@@ -9,6 +9,7 @@ import { bucketKey, type Period } from "@/server/services/periods"
 import { getBusinessClock, getDirectory } from "@/server/services/business"
 import { dateKeyInZone, formatDateTimeInZone } from "@/lib/time"
 import type { Payment } from "@/types"
+import { formatCurrency } from "@/lib/utils"
 
 export async function listPayments(
   ctx: RequestContext,
@@ -74,6 +75,12 @@ export async function getPaymentFormData(ctx: RequestContext, appointmentId?: st
     appointmentId ? repos.appointments.get(ctx.organizationId, appointmentId) : null,
   ])
   const service = appointment ? directory.service(appointment.service_id) : undefined
+  // Anything already paid (an online deposit) comes off the amount due
+  const alreadyPaid = appointment
+    ? (await repos.payments.list(ctx.organizationId, { clientId: appointment.client_id }))
+        .filter((p) => p.appointment_id === appointment.id && p.status === "COMPLETED")
+        .reduce((sum, p) => sum + p.amount, 0)
+    : 0
   return {
     today: clock.todayKey,
     clients: directory.clients
@@ -91,9 +98,10 @@ export async function getPaymentFormData(ctx: RequestContext, appointmentId?: st
           client_id: appointment.client_id,
           staff_id: appointment.staff_id,
           service_id: appointment.service_id,
-          amount: service?.default_price ?? 0,
+          amount: Math.max(0, (service?.default_price ?? 0) - alreadyPaid),
+          alreadyPaid,
           payment_date: dateKeyInZone(appointment.scheduled_at, clock.timezone),
-          summary: `${directory.serviceName(appointment.service_id)} with ${directory.userName(appointment.staff_id)}, ${formatDateTimeInZone(appointment.scheduled_at, clock.timezone)}`,
+          summary: `${directory.serviceName(appointment.service_id)} with ${directory.userName(appointment.staff_id)}, ${formatDateTimeInZone(appointment.scheduled_at, clock.timezone)}${alreadyPaid ? ` (${formatCurrency(alreadyPaid)} already paid)` : ""}`,
         }
       : null,
   }

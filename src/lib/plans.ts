@@ -70,6 +70,9 @@ export function formatCount(resource: LimitedResource, count: number): string {
 // ---------------------------------------------------------------------------
 
 export type Feature =
+  | "onlineBooking"
+  | "deposits"
+  | "whatsappReminders"
   | "staffManagement"
   | "revenueAnalytics"
   | "expenseTracking"
@@ -81,6 +84,9 @@ export type Feature =
   | "guidedOnboarding"
 
 export const FEATURE_LABELS: Record<Feature, string> = {
+  onlineBooking: "Online booking page",
+  deposits: "Booking deposits (Paystack / card)",
+  whatsappReminders: "WhatsApp confirmations & reminders",
   staffManagement: "Staff directory & schedules",
   revenueAnalytics: "Revenue analytics",
   expenseTracking: "Expense tracking",
@@ -92,7 +98,19 @@ export const FEATURE_LABELS: Record<Feature, string> = {
   guidedOnboarding: "Guided onboarding & data migration",
 }
 
-const MANAGER_FEATURES: Feature[] = ["staffManagement", "revenueAnalytics", "expenseTracking"]
+// Online booking is on every plan: every client who books sees the spa's page
+// (and ours), which is the growth loop. Deposits and reminders are what cut
+// no-shows, so they start at Manager.
+const ESSENTIALS_FEATURES: Feature[] = ["onlineBooking"]
+
+const MANAGER_FEATURES: Feature[] = [
+  ...ESSENTIALS_FEATURES,
+  "deposits",
+  "whatsappReminders",
+  "staffManagement",
+  "revenueAnalytics",
+  "expenseTracking",
+]
 
 const EXECUTIVE_FEATURES: Feature[] = [
   ...MANAGER_FEATURES,
@@ -102,7 +120,7 @@ const EXECUTIVE_FEATURES: Feature[] = [
 ]
 
 export const PLAN_FEATURES: Record<TierId, ReadonlySet<Feature>> = {
-  essentials: new Set<Feature>(),
+  essentials: new Set(ESSENTIALS_FEATURES),
   manager: new Set(MANAGER_FEATURES),
   executive: new Set(EXECUTIVE_FEATURES),
   enterprise: new Set<Feature>([

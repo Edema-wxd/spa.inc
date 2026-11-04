@@ -45,6 +45,7 @@ prisma/schema.prisma        multi-tenant Postgres schema (organizations, subscri
 src/app/
   api/                      route handlers - thin: validate, call a service, return the envelope
   dashboard/                server layout (loads plan) + modules; gated segments have a layout.tsx
+  book/[slug]/              public booking page, client manage page, demo checkout
   pricing/, contact-sales/  public pages
 src/server/                 server-only code
   context.ts                getRequestContext(): organizationId, userId, role, plan (demo: cookie)
@@ -52,6 +53,11 @@ src/server/                 server-only code
   errors.ts, http.ts        ApiError types, route() wrapper, ok()/created(), parseBody/parseQuery
   services/                 business rules per domain - the only place plan/role checks live
                             business.ts: getBusinessClock (timezone, today), lookups, local-date queries
+                            scheduling.ts: availability engine and clash/working-hours rules
+                            online-booking.ts, deposits.ts, messaging.ts, reminders.ts: item 2
+  payments/                 deposit providers: Paystack, Stripe Checkout, demo
+  messaging/whatsapp.ts     WhatsApp Cloud API adapter and webhook signature check
+  rate-limit.ts, booking-lock.ts, app-url.ts
   repositories/             types.ts (interfaces), memory.ts (default), prisma.ts; getRepositories()
   demo/                     server-only demo seed (seed.ts generates bookings, payments, expenses)
 src/lib/
@@ -68,6 +74,8 @@ src/components/
   plan/                     PlanProvider/usePlan, RequireFeature, FeatureGate, UpgradePrompt, meters
   layout/                   dashboard shell, sidebars, header, nav-items.ts, session-user (signed-in user)
   calendar/                 calendar view, booking dialog, appointment sheet
+  booking/                  public booking flow, manage actions
+  online-booking/           dashboard share card, booking rules form, message log
   settings/, pricing/, ...  feature components
 src/generated/              Prisma client output (gitignored)
 ```
@@ -103,8 +111,16 @@ src/generated/              Prisma client output (gitignored)
   timezone. Use `getBusinessClock(ctx)` and `src/lib/time.ts`, never `new Date()` day math or
   date-fns `startOfDay` on the server. Payment and expense dates are business-local date keys.
   Return display dates from services as date keys (`"yyyy-MM-dd"`) so they don't shift per viewer.
-- Bookings: all scheduling rules (clashes, working hours, bookable staff) live in
-  `src/server/services/appointments.ts`; the calendar UI only offers what `/api/availability` returns.
+- Bookings: all scheduling rules (clashes, working hours, bookable staff, holds) live in
+  `src/server/services/scheduling.ts`; the calendar and public page only offer what the
+  availability endpoints return. Wrap "check then insert" in `withBookingLock(orgId, ...)`.
+- Public routes (`/book`, `/api/public`, webhooks, cron) have no session: they use
+  `getSystemContext(orgId)` and only call the online-booking, deposit and messaging services.
+  Address a client's booking by its `manage_token`, never by id.
+- Payments are confirmed only by a signature-checked webhook or a server-side provider
+  verification, never by query parameters. Messages go through `sendClientMessage`, which
+  never throws and records SIMULATED messages when no provider is configured.
+- The memory repository returns copies from `get`/`update`; don't rely on mutating rows.
 - Gated pages: the segment layout renders the upgrade prompt, and the page itself returns `null`
   when the plan lacks the feature (pages and layouts render in parallel, and services throw).
 - Never show invented numbers. Comparisons must be like-for-like (same weekdays, complete
@@ -118,6 +134,8 @@ src/generated/              Prisma client output (gitignored)
   (`RequireFeature` in a segment layout, `FeatureGate`, `AddResourceButton`, `LimitBanner`) is
   for UX only and never replaces the server check.
 - Downgrades keep existing data; they only block adding more.
+- Online booking is on every plan; deposits and WhatsApp reminders start at Manager. Online
+  bookings are never refused for the client limit.
 - Demo plan lives in the `spa-plan` cookie (default `executive`), switched via `PUT /api/plan`
   from Settings > Plan & Billing.
 
@@ -137,6 +155,8 @@ src/generated/              Prisma client output (gitignored)
 
 - No auth or route protection; `getRequestContext()` returns a fixed demo admin.
 - The in-memory store resets on restart and is per server instance.
-- Notifications (confirmation emails, sales lead alerts) only log to the console.
+- Email confirmations and sales lead alerts only log to the console. WhatsApp messages and
+  deposits run in demo mode until provider keys are set (docs/ONLINE_BOOKING.md).
+- Rate limits and the booking lock are per server process.
 - No database seed script or migrations committed yet (the demo seed only fills the memory store).
 - Money is always shown in USD, even for NGN customers (see docs/ACTION_PLAN.md item 4).

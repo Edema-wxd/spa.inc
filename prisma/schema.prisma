@@ -50,6 +50,7 @@ enum UserRole {
 }
 
 enum AppointmentStatus {
+  PENDING_DEPOSIT
   SCHEDULED
   COMPLETED
   CANCELLED
@@ -90,6 +91,57 @@ enum RecurrenceInterval {
   MONTHLY
 }
 
+enum BookingSource {
+  DASHBOARD
+  ONLINE
+}
+
+enum DepositType {
+  NONE
+  FIXED
+  PERCENT
+}
+
+enum DepositProvider {
+  DEMO
+  PAYSTACK
+  STRIPE
+}
+
+enum DepositStatus {
+  PENDING
+  PAID
+  REFUNDED
+  FORFEITED
+  EXPIRED
+}
+
+enum MessageChannel {
+  WHATSAPP
+  SMS
+  EMAIL
+}
+
+enum MessageKind {
+  BOOKING_CONFIRMATION
+  DEPOSIT_REQUEST
+  REMINDER
+  CANCELLATION
+  REPLY
+}
+
+enum MessageDirection {
+  OUTBOUND
+  INBOUND
+}
+
+enum MessageStatus {
+  SIMULATED
+  SENT
+  FAILED
+  RECEIVED
+}
+
 enum SalesLeadStatus {
   NEW
   CONTACTED
@@ -107,10 +159,15 @@ model Organization {
   name        String
   slug        String   @unique
   countryCode String   @default("US") @map("country_code") @db.Char(2)
+  /// Currency the business charges in (deposits, booking page)
+  currency    Currency @default(USD)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  subscription Subscription?
+  subscription    Subscription?
+  bookingSettings BookingSettings?
+  deposits        Deposit[]
+  messages        Message[]
   locations    Location[]
   users        User[]
   clients      Client[]
@@ -142,6 +199,27 @@ model Subscription {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("subscriptions")
+}
+
+/// Public booking page configuration (one row per organization)
+model BookingSettings {
+  organizationId          String      @id @map("organization_id") @db.Uuid
+  enabled                 Boolean     @default(true)
+  depositType             DepositType @default(NONE) @map("deposit_type")
+  /// Minor units for FIXED, whole percent for PERCENT
+  depositValue            Int         @default(0) @map("deposit_value")
+  cancellationNoticeHours Int         @default(24) @map("cancellation_notice_hours")
+  holdMinutes             Int         @default(30) @map("hold_minutes")
+  remindersEnabled        Boolean     @default(true) @map("reminders_enabled")
+  reminderHoursBefore     Int         @default(24) @map("reminder_hours_before")
+  minNoticeMinutes        Int         @default(120) @map("min_notice_minutes")
+  bookingWindowDays       Int         @default(30) @map("booking_window_days")
+  welcomeMessage          String      @default("") @map("welcome_message")
+  updatedAt               DateTime    @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("booking_settings")
 }
 
 model Location {
@@ -207,8 +285,11 @@ model Client {
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   appointments Appointment[]
   payments     Payment[]
+  deposits     Deposit[]
+  messages     Message[]
 
   @@index([organizationId, fullName])
+  @@index([organizationId, phone])
   @@map("clients")
 }
 
@@ -248,6 +329,13 @@ model Appointment {
   locationNotes      String?           @map("location_notes")
   satisfactionRating Int?              @map("satisfaction_rating") @db.SmallInt
   notes              String?
+  source             BookingSource     @default(DASHBOARD)
+  /// While PENDING_DEPOSIT, the slot is released after this instant
+  holdExpiresAt      DateTime?         @map("hold_expires_at")
+  confirmedAt        DateTime?         @map("confirmed_at")
+  reminderSentAt     DateTime?         @map("reminder_sent_at")
+  /// Secret for the client's manage-booking link
+  manageToken        String?           @unique @map("manage_token")
   createdAt          DateTime          @default(now()) @map("created_at")
   updatedAt          DateTime          @updatedAt @map("updated_at")
 
@@ -257,6 +345,8 @@ model Appointment {
   staff        User         @relation(fields: [staffId], references: [id])
   service      Service      @relation(fields: [serviceId], references: [id])
   payments     Payment[]
+  deposits     Deposit[]
+  messages     Message[]
 
   @@index([organizationId, scheduledAt])
   @@index([staffId, scheduledAt])
@@ -309,6 +399,62 @@ model Expense {
 
   @@index([organizationId, expenseDate])
   @@map("expenses")
+}
+
+// ---------------------------------------------------------------------------
+// Online booking: deposits and client messages
+// ---------------------------------------------------------------------------
+
+model Deposit {
+  id                String          @id @default(uuid()) @db.Uuid
+  organizationId    String          @map("organization_id") @db.Uuid
+  appointmentId     String          @map("appointment_id") @db.Uuid
+  clientId          String          @map("client_id") @db.Uuid
+  /// Minor units in `currency`
+  amount            Int
+  currency          Currency
+  provider          DepositProvider
+  status            DepositStatus   @default(PENDING)
+  /// Paystack reference or Stripe Checkout session id
+  providerReference String          @unique @map("provider_reference")
+  checkoutUrl       String?         @map("checkout_url")
+  paymentId         String?         @unique @map("payment_id") @db.Uuid
+  paidAt            DateTime?       @map("paid_at")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  appointment  Appointment  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([appointmentId])
+  @@map("deposits")
+}
+
+model Message {
+  id                String           @id @default(uuid()) @db.Uuid
+  organizationId    String           @map("organization_id") @db.Uuid
+  appointmentId     String?          @map("appointment_id") @db.Uuid
+  clientId          String?          @map("client_id") @db.Uuid
+  channel           MessageChannel
+  kind              MessageKind
+  direction         MessageDirection
+  /// E.164 digits for WhatsApp/SMS, an address for email
+  to                String
+  body              String
+  status            MessageStatus
+  providerMessageId String?          @map("provider_message_id")
+  error             String?
+  createdAt         DateTime         @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  appointment  Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  client       Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([to, direction, createdAt])
+  @@map("messages")
 }
 
 model StaffSchedule {

@@ -2,7 +2,11 @@ import "server-only"
 
 import type {
   Appointment as DbAppointment,
+  BookingSettings as DbBookingSettings,
   Client as DbClient,
+  Deposit as DbDeposit,
+  Message as DbMessage,
+  Organization as DbOrganization,
   Expense as DbExpense,
   Location as DbLocation,
   Payment as DbPayment,
@@ -11,9 +15,15 @@ import type {
   StaffSchedule as DbStaffSchedule,
   User as DbUser,
 } from "@/generated/prisma/client"
+import { DEFAULT_BOOKING_SETTINGS } from "@/lib/booking"
+import { normalizePhone, phoneDigits, phoneMatchKey } from "@/lib/phone"
 import type {
   Appointment,
+  BookingSettings,
   Client,
+  Deposit,
+  Message,
+  Organization,
   Expense,
   Location,
   Payment,
@@ -23,7 +33,7 @@ import type {
   User,
 } from "@/types"
 import { getPrisma } from "@/server/db/prisma"
-import type { DateRange, Repositories } from "@/server/repositories/types"
+import type { AppointmentPatch, DateRange, Repositories } from "@/server/repositories/types"
 
 // ---------------------------------------------------------------------------
 // Mappers: Prisma models (camelCase, Date) -> API shapes (snake_case, ISO)
@@ -86,6 +96,11 @@ function toAppointment(a: DbAppointment): Appointment {
     location_notes: a.locationNotes ?? "",
     satisfaction_rating: a.satisfactionRating,
     notes: a.notes ?? "",
+    source: a.source,
+    hold_expires_at: a.holdExpiresAt && iso(a.holdExpiresAt),
+    confirmed_at: a.confirmedAt && iso(a.confirmedAt),
+    reminder_sent_at: a.reminderSentAt && iso(a.reminderSentAt),
+    manage_token: a.manageToken,
     created_at: iso(a.createdAt),
     updated_at: iso(a.updatedAt),
   }
@@ -167,6 +182,87 @@ function toSalesLead(l: DbSalesLead): SalesLead {
   }
 }
 
+function toBookingSettings(b: DbBookingSettings | null): BookingSettings {
+  if (!b) return { ...DEFAULT_BOOKING_SETTINGS }
+  return {
+    enabled: b.enabled,
+    deposit_type: b.depositType,
+    deposit_value: b.depositValue,
+    cancellation_notice_hours: b.cancellationNoticeHours,
+    hold_minutes: b.holdMinutes,
+    reminders_enabled: b.remindersEnabled,
+    reminder_hours_before: b.reminderHoursBefore,
+    min_notice_minutes: b.minNoticeMinutes,
+    booking_window_days: b.bookingWindowDays,
+    welcome_message: b.welcomeMessage,
+  }
+}
+
+function toOrganization(o: DbOrganization & { bookingSettings: DbBookingSettings | null }): Organization {
+  return {
+    id: o.id,
+    name: o.name,
+    slug: o.slug,
+    country_code: o.countryCode,
+    currency: o.currency,
+    booking: toBookingSettings(o.bookingSettings),
+    created_at: iso(o.createdAt),
+    updated_at: iso(o.updatedAt),
+  }
+}
+
+function toDeposit(d: DbDeposit): Deposit {
+  return {
+    id: d.id,
+    appointment_id: d.appointmentId,
+    client_id: d.clientId,
+    amount: d.amount,
+    currency: d.currency,
+    provider: d.provider,
+    status: d.status,
+    provider_reference: d.providerReference,
+    checkout_url: d.checkoutUrl,
+    payment_id: d.paymentId,
+    paid_at: d.paidAt && iso(d.paidAt),
+    created_at: iso(d.createdAt),
+    updated_at: iso(d.updatedAt),
+  }
+}
+
+function toMessage(m: DbMessage): Message {
+  return {
+    id: m.id,
+    appointment_id: m.appointmentId,
+    client_id: m.clientId,
+    channel: m.channel,
+    kind: m.kind,
+    direction: m.direction,
+    to: m.to,
+    body: m.body,
+    status: m.status,
+    provider_message_id: m.providerMessageId,
+    error: m.error,
+    created_at: iso(m.createdAt),
+  }
+}
+
+const nullableDate = (value: string | null | undefined) =>
+  value === undefined ? undefined : value === null ? null : new Date(value)
+
+/** Shared by create and update: the system-managed appointment fields. */
+function appointmentSystemData(input: AppointmentPatch) {
+  return {
+    status: input.status,
+    source: input.source,
+    holdExpiresAt: nullableDate(input.hold_expires_at),
+    confirmedAt: nullableDate(input.confirmed_at),
+    reminderSentAt: nullableDate(input.reminder_sent_at),
+    manageToken: input.manage_token,
+  }
+}
+
+const withSettings = { bookingSettings: true } as const
+
 function dateFilter(range: DateRange) {
   if (!range.from && !range.to) return undefined
   return {
@@ -192,7 +288,8 @@ export const prismaRepositories: Repositories = {
             OR: [
               { fullName: { contains: search, mode: "insensitive" } },
               { email: { contains: search, mode: "insensitive" } },
-              { phone: { contains: search } },
+              // Phones are stored as digits, so search by digits too
+              ...(phoneDigits(search).length >= 3 ? [{ phone: { contains: phoneDigits(search) } }] : []),
             ],
           }),
         },
@@ -207,13 +304,24 @@ export const prismaRepositories: Repositories = {
     async count(orgId) {
       return getPrisma().client.count({ where: { organizationId: orgId } })
     },
+    async findByPhone(orgId, phone) {
+      const key = phoneMatchKey(phone)
+      if (key.length < 7) return null
+      // Narrow in SQL by the last 7 digits, then compare formats in code
+      const rows = await getPrisma().client.findMany({
+        where: { organizationId: orgId, phone: { contains: key.slice(-7) } },
+        take: 20,
+      })
+      const match = rows.find((c) => c.phone && phoneMatchKey(c.phone) === key)
+      return match ? toClient(match) : null
+    },
     async create(orgId, input) {
       const row = await getPrisma().client.create({
         data: {
           organizationId: orgId,
           fullName: input.full_name,
           email: input.email || null,
-          phone: input.phone,
+          phone: normalizePhone(input.phone),
           dateOfBirth: optionalDate(input.date_of_birth),
           address: input.address,
           notes: input.notes,
@@ -227,7 +335,7 @@ export const prismaRepositories: Repositories = {
         data: {
           fullName: input.full_name,
           email: input.email,
-          phone: input.phone,
+          phone: input.phone && normalizePhone(input.phone),
           dateOfBirth: optionalDate(input.date_of_birth),
           address: input.address,
           notes: input.notes,
@@ -310,6 +418,7 @@ export const prismaRepositories: Repositories = {
           organizationId: orgId,
           clientId: filter.clientId,
           staffId: filter.staffId,
+          status: filter.status,
           scheduledAt: dateFilter(filter),
         },
         orderBy: { scheduledAt: "desc" },
@@ -318,6 +427,10 @@ export const prismaRepositories: Repositories = {
     },
     async get(orgId, id) {
       const row = await getPrisma().appointment.findFirst({ where: { id, organizationId: orgId } })
+      return row && toAppointment(row)
+    },
+    async getByManageToken(orgId, token) {
+      const row = await getPrisma().appointment.findFirst({ where: { manageToken: token, organizationId: orgId } })
       return row && toAppointment(row)
     },
     async create(orgId, input) {
@@ -332,6 +445,7 @@ export const prismaRepositories: Repositories = {
           locationType: input.location_type,
           locationNotes: input.location_notes,
           notes: input.notes,
+          ...appointmentSystemData(input),
         },
       })
       return toAppointment(row)
@@ -342,12 +456,12 @@ export const prismaRepositories: Repositories = {
         data: {
           scheduledAt: optionalDate(input.scheduled_at),
           durationMinutes: input.duration_minutes,
-          status: input.status,
           staffId: input.staff_id,
           locationType: input.location_type,
           locationNotes: input.location_notes,
           satisfactionRating: input.satisfaction_rating,
           notes: input.notes,
+          ...appointmentSystemData(input),
         },
       })
       return count ? this.get(orgId, id) : null
@@ -355,6 +469,17 @@ export const prismaRepositories: Repositories = {
   },
 
   payments: {
+    async get(orgId, id) {
+      const row = await getPrisma().payment.findFirst({ where: { id, organizationId: orgId } })
+      return row && toPayment(row)
+    },
+    async update(orgId, id, input) {
+      const { count } = await getPrisma().payment.updateMany({
+        where: { id, organizationId: orgId },
+        data: { status: input.status, referenceNote: input.reference_note },
+      })
+      return count ? this.get(orgId, id) : null
+    },
     async list(orgId, filter = {}) {
       const rows = await getPrisma().payment.findMany({
         where: {
@@ -480,6 +605,126 @@ export const prismaRepositories: Repositories = {
         },
       })
       return toLocation(row)
+    },
+  },
+
+  organizations: {
+    async get(orgId) {
+      const row = await getPrisma().organization.findUnique({ where: { id: orgId }, include: withSettings })
+      return row && toOrganization(row)
+    },
+    async getBySlug(slug) {
+      const row = await getPrisma().organization.findUnique({ where: { slug }, include: withSettings })
+      return row && toOrganization(row)
+    },
+    async listAll() {
+      const rows = await getPrisma().organization.findMany({ include: withSettings })
+      return rows.map(toOrganization)
+    },
+    async updateBookingSettings(orgId, settings) {
+      const data = {
+        enabled: settings.enabled,
+        depositType: settings.deposit_type,
+        depositValue: settings.deposit_value,
+        cancellationNoticeHours: settings.cancellation_notice_hours,
+        holdMinutes: settings.hold_minutes,
+        remindersEnabled: settings.reminders_enabled,
+        reminderHoursBefore: settings.reminder_hours_before,
+        minNoticeMinutes: settings.min_notice_minutes,
+        bookingWindowDays: settings.booking_window_days,
+        welcomeMessage: settings.welcome_message,
+      }
+      await getPrisma().bookingSettings.upsert({
+        where: { organizationId: orgId },
+        create: { organizationId: orgId, ...data },
+        update: data,
+      })
+      return this.get(orgId)
+    },
+  },
+
+  deposits: {
+    async list(orgId, filter = {}) {
+      const rows = await getPrisma().deposit.findMany({
+        where: { organizationId: orgId, appointmentId: filter.appointmentId, status: filter.status },
+        orderBy: { createdAt: "desc" },
+      })
+      return rows.map(toDeposit)
+    },
+    async get(orgId, id) {
+      const row = await getPrisma().deposit.findFirst({ where: { id, organizationId: orgId } })
+      return row && toDeposit(row)
+    },
+    async create(orgId, input) {
+      const row = await getPrisma().deposit.create({
+        data: {
+          organizationId: orgId,
+          appointmentId: input.appointment_id,
+          clientId: input.client_id,
+          amount: input.amount,
+          currency: input.currency,
+          provider: input.provider,
+          status: input.status,
+          providerReference: input.provider_reference,
+          checkoutUrl: input.checkout_url,
+          paymentId: input.payment_id,
+          paidAt: nullableDate(input.paid_at),
+        },
+      })
+      return toDeposit(row)
+    },
+    async update(orgId, id, input) {
+      const { count } = await getPrisma().deposit.updateMany({
+        where: { id, organizationId: orgId },
+        data: {
+          status: input.status,
+          providerReference: input.provider_reference,
+          checkoutUrl: input.checkout_url,
+          paymentId: input.payment_id,
+          paidAt: nullableDate(input.paid_at),
+        },
+      })
+      return count ? this.get(orgId, id) : null
+    },
+    async findByReference(reference) {
+      const row = await getPrisma().deposit.findUnique({ where: { providerReference: reference } })
+      return row && { organizationId: row.organizationId, deposit: toDeposit(row) }
+    },
+  },
+
+  messages: {
+    async list(orgId, filter = {}) {
+      const rows = await getPrisma().message.findMany({
+        where: { organizationId: orgId, appointmentId: filter.appointmentId },
+        orderBy: { createdAt: "desc" },
+        take: filter.limit,
+      })
+      return rows.map(toMessage)
+    },
+    async create(orgId, input) {
+      const row = await getPrisma().message.create({
+        data: {
+          organizationId: orgId,
+          appointmentId: input.appointment_id,
+          clientId: input.client_id,
+          channel: input.channel,
+          kind: input.kind,
+          direction: input.direction,
+          to: input.to,
+          body: input.body,
+          status: input.status,
+          providerMessageId: input.provider_message_id,
+          error: input.error,
+        },
+      })
+      return toMessage(row)
+    },
+    async findLatestOutboundTo(to) {
+      const row = await getPrisma().message.findFirst({
+        where: { to, direction: "OUTBOUND" },
+        orderBy: { createdAt: "desc" },
+      })
+      return row && { organizationId: row.organizationId, message: toMessage(row) }
     },
   },
 

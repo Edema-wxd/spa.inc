@@ -24,6 +24,7 @@ const segmentLabels: Record<string, string> = {
   pnl: "Profit & Loss",
   settings: "Settings",
   calendar: "Calendar",
+  "online-booking": "Online Booking",
   new: "New",
 }
 

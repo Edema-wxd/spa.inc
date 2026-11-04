@@ -1,5 +1,6 @@
 import {
   CalendarDays,
+  Globe,
   LayoutDashboard,
   Users,
   UserCog,
@@ -38,6 +39,7 @@ export const navSections: NavSection[] = [
     title: "MANAGEMENT",
     items: [
       { label: "Calendar", href: "/dashboard/calendar", icon: CalendarDays },
+      { label: "Online Booking", href: "/dashboard/online-booking", icon: Globe },
       { label: "Clients", href: "/dashboard/clients", icon: Users },
       { label: "Staff", href: "/dashboard/staff", icon: UserCog, feature: "staffManagement" },
       { label: "Payments", href: "/dashboard/payments", icon: CreditCard },

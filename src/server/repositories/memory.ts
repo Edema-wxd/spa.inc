@@ -1,11 +1,15 @@
 import "server-only"
 
 import { buildDemoData, buildEmptyData } from "@/server/demo/seed"
+import { normalizePhone, phoneDigits, phoneMatchKey } from "@/lib/phone"
 import type {
   Appointment,
   Client,
+  Deposit,
   Expense,
   Location,
+  Message,
+  Organization,
   Payment,
   SalesLead,
   Service,
@@ -28,6 +32,9 @@ interface OrgStore {
   expenses: Expense[]
   schedules: StaffSchedule[]
   locations: Location[]
+  organization: Organization | null
+  deposits: Deposit[]
+  messages: Message[]
 }
 
 interface MemoryDb {
@@ -62,6 +69,9 @@ function emptyStore(): OrgStore {
     expenses: [],
     schedules: [],
     locations: [],
+    organization: null,
+    deposits: [],
+    messages: [],
   }
 }
 
@@ -84,35 +94,48 @@ function inRange(dateIso: string, range: DateRange) {
   return (!range.from || day >= range.from) && (!range.to || day <= range.to)
 }
 
+/** Updates the stored row and returns a copy (callers must never hold live rows). */
 function patch<T extends object>(item: T, input: object): T {
   const defined = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined))
-  return Object.assign(item, defined, { updated_at: now() })
+  return structuredClone(Object.assign(item, defined, { updated_at: now() }))
+}
+
+/** A copy of a stored row, or null. */
+function copy<T>(item: T | undefined): T | null {
+  return item ? structuredClone(item) : null
 }
 
 export const memoryRepositories: Repositories = {
   clients: {
     async list(orgId, filter) {
       const search = filter?.search?.toLowerCase()
+      // Phone search ignores formatting: "555 0141" finds "(512) 555-0141"
+      const digits = search ? phoneDigits(search) : ""
       return org(orgId).clients.filter(
         (c) =>
           !search ||
           c.full_name.toLowerCase().includes(search) ||
           c.email.toLowerCase().includes(search) ||
-          c.phone.includes(search)
+          (digits.length >= 3 && phoneDigits(c.phone).includes(digits))
       )
     },
     async get(orgId, id) {
-      return org(orgId).clients.find((c) => c.id === id) ?? null
+      return copy(org(orgId).clients.find((c) => c.id === id))
     },
     async count(orgId) {
       return org(orgId).clients.length
+    },
+    async findByPhone(orgId, phone) {
+      const key = phoneMatchKey(phone)
+      if (key.length < 7) return null
+      return copy(org(orgId).clients.find((c) => c.phone && phoneMatchKey(c.phone) === key))
     },
     async create(orgId, input) {
       const client: Client = {
         id: newId("client"),
         full_name: input.full_name,
         email: input.email ?? "",
-        phone: input.phone,
+        phone: normalizePhone(input.phone),
         date_of_birth: input.date_of_birth ?? "",
         address: input.address ?? "",
         notes: input.notes ?? "",
@@ -124,7 +147,7 @@ export const memoryRepositories: Repositories = {
     },
     async update(orgId, id, input) {
       const client = org(orgId).clients.find((c) => c.id === id)
-      return client ? patch(client, input) : null
+      return client ? patch(client, input.phone ? { ...input, phone: normalizePhone(input.phone) } : input) : null
     },
     async delete(orgId, id) {
       const store = org(orgId)
@@ -142,7 +165,7 @@ export const memoryRepositories: Repositories = {
       )
     },
     async get(orgId, id) {
-      return org(orgId).users.find((u) => u.id === id) ?? null
+      return copy(org(orgId).users.find((u) => u.id === id))
     },
     async count(orgId, filter) {
       return (await this.list(orgId, filter)).length
@@ -173,7 +196,7 @@ export const memoryRepositories: Repositories = {
       return org(orgId).services
     },
     async get(orgId, id) {
-      return org(orgId).services.find((s) => s.id === id) ?? null
+      return copy(org(orgId).services.find((s) => s.id === id))
     },
   },
 
@@ -183,11 +206,15 @@ export const memoryRepositories: Repositories = {
         (a) =>
           (!filter.clientId || a.client_id === filter.clientId) &&
           (!filter.staffId || a.staff_id === filter.staffId) &&
+          (!filter.status || a.status === filter.status) &&
           inRange(a.scheduled_at, filter)
       )
     },
     async get(orgId, id) {
-      return org(orgId).appointments.find((a) => a.id === id) ?? null
+      return copy(org(orgId).appointments.find((a) => a.id === id))
+    },
+    async getByManageToken(orgId, token) {
+      return copy(org(orgId).appointments.find((a) => a.manage_token === token))
     },
     async create(orgId, input) {
       const appointment: Appointment = {
@@ -197,11 +224,16 @@ export const memoryRepositories: Repositories = {
         service_id: input.service_id,
         scheduled_at: input.scheduled_at,
         duration_minutes: input.duration_minutes,
-        status: "SCHEDULED",
+        status: input.status ?? "SCHEDULED",
         location_type: input.location_type,
         location_notes: input.location_notes ?? "",
         satisfaction_rating: null,
         notes: input.notes ?? "",
+        source: input.source ?? "DASHBOARD",
+        hold_expires_at: input.hold_expires_at ?? null,
+        confirmed_at: input.confirmed_at ?? null,
+        reminder_sent_at: input.reminder_sent_at ?? null,
+        manage_token: input.manage_token ?? null,
         created_at: now(),
         updated_at: now(),
       }
@@ -215,6 +247,13 @@ export const memoryRepositories: Repositories = {
   },
 
   payments: {
+    async get(orgId, id) {
+      return copy(org(orgId).payments.find((p) => p.id === id))
+    },
+    async update(orgId, id, input) {
+      const payment = org(orgId).payments.find((p) => p.id === id)
+      return payment ? patch(payment, input) : null
+    },
     async list(orgId, filter = {}) {
       return org(orgId).payments.filter(
         (p) =>
@@ -247,7 +286,7 @@ export const memoryRepositories: Repositories = {
       return org(orgId).expenses.filter((e) => inRange(e.expense_date, filter))
     },
     async get(orgId, id) {
-      return org(orgId).expenses.find((e) => e.id === id) ?? null
+      return copy(org(orgId).expenses.find((e) => e.id === id))
     },
     async create(orgId, input) {
       const expense: Expense = {
@@ -316,6 +355,81 @@ export const memoryRepositories: Repositories = {
       }
       org(orgId).locations.push(location)
       return location
+    },
+  },
+
+  organizations: {
+    async get(orgId) {
+      return copy(org(orgId).organization ?? undefined)
+    },
+    async getBySlug(slug) {
+      for (const store of db().orgs.values()) {
+        if (store.organization?.slug === slug) return store.organization
+      }
+      return null
+    },
+    async listAll() {
+      return [...db().orgs.values()].flatMap((store) => (store.organization ? [store.organization] : []))
+    },
+    async updateBookingSettings(orgId, settings) {
+      const organization = org(orgId).organization
+      if (!organization) return null
+      organization.booking = { ...settings }
+      organization.updated_at = now()
+      return structuredClone(organization)
+    },
+  },
+
+  deposits: {
+    async list(orgId, filter = {}) {
+      return org(orgId).deposits.filter(
+        (d) =>
+          (!filter.appointmentId || d.appointment_id === filter.appointmentId) &&
+          (!filter.status || d.status === filter.status)
+      )
+    },
+    async get(orgId, id) {
+      return copy(org(orgId).deposits.find((d) => d.id === id))
+    },
+    async create(orgId, input) {
+      const deposit: Deposit = { id: newId("dep"), ...input, created_at: now(), updated_at: now() }
+      org(orgId).deposits.push(deposit)
+      return deposit
+    },
+    async update(orgId, id, input) {
+      const deposit = org(orgId).deposits.find((d) => d.id === id)
+      return deposit ? patch(deposit, input) : null
+    },
+    async findByReference(reference) {
+      for (const [organizationId, store] of db().orgs) {
+        const deposit = store.deposits.find((d) => d.provider_reference === reference)
+        if (deposit) return { organizationId, deposit }
+      }
+      return null
+    },
+  },
+
+  messages: {
+    async list(orgId, filter = {}) {
+      const rows = org(orgId)
+        .messages.filter((m) => !filter.appointmentId || m.appointment_id === filter.appointmentId)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      return filter.limit ? rows.slice(0, filter.limit) : rows
+    },
+    async create(orgId, input) {
+      const message: Message = { id: newId("msg"), ...input, created_at: now() }
+      org(orgId).messages.push(message)
+      return message
+    },
+    async findLatestOutboundTo(to) {
+      let latest: { organizationId: string; message: Message } | null = null
+      for (const [organizationId, store] of db().orgs) {
+        for (const message of store.messages) {
+          if (message.direction !== "OUTBOUND" || message.to !== to) continue
+          if (!latest || message.created_at > latest.message.created_at) latest = { organizationId, message }
+        }
+      }
+      return latest
     },
   },
 

@@ -5,7 +5,7 @@ import { User } from "@/types"
 export const usersSeed: User[] = [
   {
     id: "admin-001",
-    email: "rebecca.torres@spa-inc.com",
+    email: "rebecca.torres@juniperdayspa.com",
     full_name: "Rebecca Torres",
     role: "ADMIN",
     phone: "5551234001",
@@ -16,7 +16,7 @@ export const usersSeed: User[] = [
   },
   {
     id: "admin-002",
-    email: "michael.reyes@spa-inc.com",
+    email: "michael.reyes@juniperdayspa.com",
     full_name: "Michael Reyes",
     role: "ADMIN",
     phone: "5551234002",
@@ -27,7 +27,7 @@ export const usersSeed: User[] = [
   },
   {
     id: "staff-001",
-    email: "maria.santos@spa-inc.com",
+    email: "maria.santos@juniperdayspa.com",
     full_name: "Maria Santos",
     role: "STAFF",
     phone: "5551234011",
@@ -38,7 +38,7 @@ export const usersSeed: User[] = [
   },
   {
     id: "staff-002",
-    email: "david.chen@spa-inc.com",
+    email: "david.chen@juniperdayspa.com",
     full_name: "David Chen",
     role: "STAFF",
     phone: "5551234012",
@@ -49,7 +49,7 @@ export const usersSeed: User[] = [
   },
   {
     id: "staff-003",
-    email: "aisha.patel@spa-inc.com",
+    email: "aisha.patel@juniperdayspa.com",
     full_name: "Aisha Patel",
     role: "STAFF",
     phone: "5551234013",
@@ -60,7 +60,7 @@ export const usersSeed: User[] = [
   },
   {
     id: "staff-004",
-    email: "james.okafor@spa-inc.com",
+    email: "james.okafor@juniperdayspa.com",
     full_name: "James Okafor",
     role: "STAFF",
     phone: "5551234014",
@@ -71,7 +71,7 @@ export const usersSeed: User[] = [
   },
   {
     id: "staff-005",
-    email: "elena.voronova@spa-inc.com",
+    email: "elena.voronova@juniperdayspa.com",
     full_name: "Elena Voronova",
     role: "STAFF",
     phone: "5551234015",
@@ -82,7 +82,7 @@ export const usersSeed: User[] = [
   },
   {
     id: "staff-006",
-    email: "carlos.mendez@spa-inc.com",
+    email: "carlos.mendez@juniperdayspa.com",
     full_name: "Carlos Mendez",
     role: "STAFF",
     phone: "5551234016",
@@ -93,7 +93,7 @@ export const usersSeed: User[] = [
   },
   {
     id: "staff-007",
-    email: "sophie.laurent@spa-inc.com",
+    email: "sophie.laurent@juniperdayspa.com",
     full_name: "Sophie Laurent",
     role: "STAFF",
     phone: "5551234017",
@@ -104,7 +104,7 @@ export const usersSeed: User[] = [
   },
   {
     id: "staff-008",
-    email: "kenji.tanaka@spa-inc.com",
+    email: "kenji.tanaka@juniperdayspa.com",
     full_name: "Kenji Tanaka",
     role: "STAFF",
     phone: "5551234018",
