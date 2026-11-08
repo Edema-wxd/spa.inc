@@ -10,7 +10,7 @@ import { hasFeature } from "@/lib/plans"
 import { isRangePreset } from "@/lib/ranges"
 import { formatDateKey } from "@/lib/time"
 import { formatCurrency } from "@/lib/utils"
-import { getRequestContext } from "@/server/context"
+import { getPageContext } from "@/server/context"
 import { getRevenueBreakdownForPreset } from "@/server/services/analytics"
 
 export default async function RevenueAnalyticsPage({
@@ -20,7 +20,7 @@ export default async function RevenueAnalyticsPage({
 }) {
   const { range: rangeParam } = await searchParams
   const preset = isRangePreset(rangeParam) ? rangeParam : "30d"
-  const ctx = await getRequestContext()
+  const ctx = await getPageContext()
   // The segment layout shows the upgrade prompt on lower plans
   if (!hasFeature(ctx.plan, "revenueAnalytics")) return null
   const data = await getRevenueBreakdownForPreset(ctx, preset)

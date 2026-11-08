@@ -184,7 +184,7 @@ function InviteDialog({
   async function onSubmit(values: UserInviteInput) {
     try {
       await apiFetch("/api/users", { method: "POST", body: values })
-      toast.success(`Invitation sent to ${values.email}`)
+      toast.success(`${values.full_name} added. They sign in at /login with ${values.email}.`)
       form.reset()
       onOpenChange(false)
       onInvited()

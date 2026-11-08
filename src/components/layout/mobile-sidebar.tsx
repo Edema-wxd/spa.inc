@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation"
 import { Sparkles, Lock } from "lucide-react"
 import { cn, getInitials } from "@/lib/utils"
 import { usePlan } from "@/components/plan/plan-provider"
-import { navSections } from "./nav-items"
+import { navFor } from "./nav-items"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -54,7 +54,7 @@ export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
         {/* Navigation */}
         <ScrollArea className="flex-1 py-4">
           <nav className="flex flex-col gap-6 px-3">
-            {navSections.map((section) => (
+            {navFor(user.role).map((section) => (
               <div key={section.title}>
                 <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
                   {section.title}

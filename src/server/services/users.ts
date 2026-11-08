@@ -3,7 +3,7 @@ import "server-only"
 import type { ScheduleInput, StaffUpdateInput, UserInviteInput } from "@/lib/validation/users"
 import type { RequestContext } from "@/server/context"
 import { assertCanAdd, assertFeature, assertRole } from "@/server/entitlements"
-import { NotFoundError } from "@/server/errors"
+import { ApiError, NotFoundError } from "@/server/errors"
 import { getRepositories } from "@/server/repositories"
 import { getBusinessClock, getDirectory } from "@/server/services/business"
 import { addDays, dateKeyInZone, startOfWeek } from "@/lib/time"
@@ -25,7 +25,11 @@ export async function inviteUser(ctx: RequestContext, input: UserInviteInput) {
   } else {
     assertFeature(ctx, "staffManagement")
   }
-  // TODO: send the Supabase Auth invite email
+  // Emails are unique across businesses: they're how people sign in
+  if (await users.findByEmail(input.email)) {
+    throw new ApiError(409, "VALIDATION_ERROR", "Someone already uses this email", { email: ["Someone already uses this email"] })
+  }
+  // No invite email yet: they sign in at /login with this address (linked on first sign-in)
   return users.create(ctx.organizationId, input)
 }
 
@@ -34,14 +38,15 @@ export async function inviteUser(ctx: RequestContext, input: UserInviteInput) {
 export async function listStaff(ctx: RequestContext) {
   assertFeature(ctx, "staffManagement")
   const { users } = await getRepositories()
-  return users.list(ctx.organizationId, { role: "STAFF" })
+  // Therapists, plus admins who take bookings themselves
+  return (await users.list(ctx.organizationId)).filter((u) => u.role === "STAFF" || u.is_bookable)
 }
 
 export async function getStaff(ctx: RequestContext, id: string) {
   assertFeature(ctx, "staffManagement")
   const { users } = await getRepositories()
   const staff = await users.get(ctx.organizationId, id)
-  if (!staff || staff.role !== "STAFF") throw new NotFoundError("Staff member")
+  if (!staff || !(staff.role === "STAFF" || staff.is_bookable)) throw new NotFoundError("Staff member")
   return staff
 }
 

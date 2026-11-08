@@ -1,5 +1,5 @@
 import { hasFeature, minimumPlanFor, type Feature } from "@/lib/plans"
-import { getCurrentPlan } from "@/server/context"
+import { getPageContext } from "@/server/context"
 import { FEATURE_UPSELL } from "@/components/plan/feature-copy"
 import { UpgradePrompt } from "@/components/plan/upgrade-prompt"
 
@@ -14,6 +14,6 @@ export async function RequireFeature({
   feature: Feature
   children: React.ReactNode
 }) {
-  if (hasFeature(await getCurrentPlan(), feature)) return children
+  if (hasFeature((await getPageContext()).plan, feature)) return children
   return <UpgradePrompt {...FEATURE_UPSELL[feature]} requiredPlan={minimumPlanFor(feature)} />
 }

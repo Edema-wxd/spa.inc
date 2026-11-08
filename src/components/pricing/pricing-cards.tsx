@@ -135,7 +135,7 @@ export function PricingCards({ currency }: { currency: Currency }) {
               </Button>
               {tier.freeTrial && (
                 <p className="text-center text-xs text-muted-foreground">
-                  Try every Essentials feature free for {FREE_TRIAL_DAYS} days
+                  {FREE_TRIAL_DAYS} days of everything free, no card needed
                 </p>
               )}
             </CardFooter>

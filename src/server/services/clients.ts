@@ -2,7 +2,11 @@ import "server-only"
 
 import type { ClientInput, ClientUpdateInput } from "@/lib/validation/clients"
 import type { RequestContext } from "@/server/context"
-import { assertCanAdd } from "@/server/entitlements"
+import { assertCanAdd, assertRole } from "@/server/entitlements"
+import { getLimit } from "@/lib/plans"
+import { phoneDigits, phoneMatchKey } from "@/lib/phone"
+import type { ClientImportResult, ClientImportRow } from "@/lib/validation/client-import"
+import { z } from "zod"
 import { NotFoundError } from "@/server/errors"
 import { getRepositories } from "@/server/repositories"
 import { getBusinessClock, getDirectory } from "@/server/services/business"
@@ -174,4 +178,63 @@ export async function getClientProfile(ctx: RequestContext, id: string) {
       status: statusFor(lastVisit, now),
     },
   }
+}
+
+// ---------------------------------------------------------------------------
+// Import from a CSV (contacts export or another booking system)
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates clients from parsed CSV rows. Rows need a name and a phone number;
+ * a phone already in the client list (or earlier in the file) is a duplicate
+ * and skipped. Stops at the plan's client limit and reports the rest.
+ */
+export async function importClients(ctx: RequestContext, rows: ClientImportRow[]): Promise<ClientImportResult> {
+  assertRole(ctx, "ADMIN")
+  const { clients } = await getRepositories()
+  const existing = await clients.list(ctx.organizationId)
+  const seen = new Set(existing.filter((c) => c.phone).map((c) => phoneMatchKey(c.phone)))
+  const limit = getLimit(ctx.plan, "clients")
+  let count = existing.length
+  const result: ClientImportResult = { created: 0, duplicates: 0, overLimit: 0, failed: [] }
+
+  for (const [i, row] of rows.entries()) {
+    const rowNumber = i + 2 // header is row 1
+    const name = row.full_name.trim()
+    const phone = row.phone.trim()
+    const email = row.email?.trim() ?? ""
+    if (name.length < 2) {
+      result.failed.push({ row: rowNumber, reason: "Missing name" })
+      continue
+    }
+    if (phoneDigits(phone).length < 7) {
+      result.failed.push({ row: rowNumber, reason: "Missing or short phone number" })
+      continue
+    }
+    if (email && !z.email().safeParse(email).success) {
+      result.failed.push({ row: rowNumber, reason: "Email doesn't look right" })
+      continue
+    }
+    const key = phoneMatchKey(phone)
+    if (seen.has(key)) {
+      result.duplicates += 1
+      continue
+    }
+    if (limit !== null && count >= limit) {
+      result.overLimit += 1
+      continue
+    }
+    const dob = row.date_of_birth?.trim()
+    await clients.create(ctx.organizationId, {
+      full_name: name,
+      phone,
+      email,
+      notes: row.notes?.trim() || undefined,
+      date_of_birth: dob && /^\d{4}-\d{2}-\d{2}$/.test(dob) ? dob : undefined,
+    })
+    seen.add(key)
+    count += 1
+    result.created += 1
+  }
+  return result
 }

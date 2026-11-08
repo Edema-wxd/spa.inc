@@ -2,7 +2,8 @@ import "server-only"
 
 import { User } from "@/types"
 
-export const usersSeed: User[] = [
+/** Staff take bookings; the two admins don't. Nobody has signed in yet. */
+export const usersSeed: Omit<User, "is_bookable" | "auth_user_id">[] = [
   {
     id: "admin-001",
     email: "rebecca.torres@juniperdayspa.com",

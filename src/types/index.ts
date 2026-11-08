@@ -16,6 +16,10 @@ export interface User {
   phone: string
   avatar_url: string
   is_active: boolean
+  /** Takes bookings (therapists, and owners who also do treatments) */
+  is_bookable: boolean
+  /** Identity from the auth provider, linked on first sign-in */
+  auth_user_id: string | null
   created_at: string
   updated_at: string
 }
@@ -165,6 +169,21 @@ export interface Organization {
   country_code: string
   currency: BusinessCurrency
   booking: BookingSettings
+  /** The seeded demo business (plan comes from the demo cookie) */
+  is_demo: boolean
+  onboarding: { link_shared_at: string | null; dismissed_at: string | null }
+  created_at: string
+  updated_at: string
+}
+
+export type SubscriptionStatus = "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELLED"
+
+export interface Subscription {
+  organization_id: string
+  /** The plan the business chose; it applies after the trial */
+  plan: "essentials" | "manager" | "executive" | "enterprise"
+  status: SubscriptionStatus
+  trial_ends_at: string | null
   created_at: string
   updated_at: string
 }

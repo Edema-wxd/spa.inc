@@ -2,6 +2,7 @@ import {
   CalendarDays,
   Globe,
   LayoutDashboard,
+  Sparkles,
   Users,
   UserCog,
   CreditCard,
@@ -28,6 +29,17 @@ export interface NavSection {
   items: NavItem[]
 }
 
+/** Pages staff (therapists) can open; the rest are for admins. Mirrors STAFF_PATHS in server/context.ts. */
+export const STAFF_NAV = ["/dashboard/calendar"]
+
+/** The sidebar for a role: staff get their calendar only. */
+export function navFor(role: "ADMIN" | "STAFF"): NavSection[] {
+  if (role === "ADMIN") return navSections
+  return navSections
+    .map((section) => ({ ...section, items: section.items.filter((item) => STAFF_NAV.includes(item.href)) }))
+    .filter((section) => section.items.length > 0)
+}
+
 export const navSections: NavSection[] = [
   {
     title: "OVERVIEW",
@@ -40,6 +52,7 @@ export const navSections: NavSection[] = [
     items: [
       { label: "Calendar", href: "/dashboard/calendar", icon: CalendarDays },
       { label: "Online Booking", href: "/dashboard/online-booking", icon: Globe },
+      { label: "Services", href: "/dashboard/services", icon: Sparkles },
       { label: "Clients", href: "/dashboard/clients", icon: Users },
       { label: "Staff", href: "/dashboard/staff", icon: UserCog, feature: "staffManagement" },
       { label: "Payments", href: "/dashboard/payments", icon: CreditCard },

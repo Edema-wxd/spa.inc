@@ -87,7 +87,7 @@ export async function getPaymentFormData(ctx: RequestContext, appointmentId?: st
       .map((c) => ({ id: c.id, full_name: c.full_name }))
       .sort((a, b) => a.full_name.localeCompare(b.full_name)),
     staff: directory.users
-      .filter((u) => u.role === "STAFF" && u.is_active)
+      .filter((u) => u.is_bookable && u.is_active)
       .map((u) => ({ id: u.id, full_name: u.full_name })),
     services: directory.services
       .filter((s) => s.is_active)

@@ -5,11 +5,11 @@ import { MonthlyRevenueChart } from "@/components/charts/monthly-revenue-chart"
 import { ServiceDistributionChart } from "@/components/charts/service-distribution-chart"
 import { FeatureGate } from "@/components/plan/feature-gate"
 import { formatCurrency } from "@/lib/utils"
-import { getRequestContext } from "@/server/context"
+import { getPageContext } from "@/server/context"
 import { getAnalyticsOverview } from "@/server/services/analytics"
 
 export default async function AnalyticsPage() {
-  const data = await getAnalyticsOverview(await getRequestContext())
+  const data = await getAnalyticsOverview(await getPageContext())
 
   return (
     <div className="space-y-6">

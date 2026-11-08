@@ -1,6 +1,6 @@
 import { CalendarView } from "@/components/calendar/calendar-view"
 import { PageHeader } from "@/components/shared/page-header"
-import { getRequestContext } from "@/server/context"
+import { getPageContext } from "@/server/context"
 import { getBookingOptions, getCalendar } from "@/server/services/appointments"
 
 export default async function CalendarPage({
@@ -9,7 +9,7 @@ export default async function CalendarPage({
   searchParams: Promise<{ view?: string; date?: string; staff?: string; book?: string; client?: string }>
 }) {
   const params = await searchParams
-  const ctx = await getRequestContext()
+  const ctx = await getPageContext()
   const [data, options] = await Promise.all([
     getCalendar(ctx, { view: params.view, date: params.date, staffId: params.staff }),
     getBookingOptions(ctx),

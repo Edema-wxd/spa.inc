@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { getRequestContext } from "@/server/context"
+import { getPageContext } from "@/server/context"
 import { NotFoundError } from "@/server/errors"
 import { getClientProfile } from "@/server/services/clients"
 import { dateKeyInZone } from "@/lib/time"
@@ -23,7 +23,7 @@ export default async function ClientDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const ctx = await getRequestContext()
+  const ctx = await getPageContext()
   const profile = await getClientProfile(ctx, id).catch((err) => {
     if (err instanceof NotFoundError) return null
     throw err

@@ -1,11 +1,13 @@
 import Link from "next/link"
+import { FileUp } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
 import { ClientsTable } from "@/components/clients/clients-table"
 import { AddResourceButton } from "@/components/plan/add-resource-button"
 import { LimitBanner } from "@/components/plan/limit-banner"
 import { UsageMeter } from "@/components/plan/usage-meter"
 import { getLimit } from "@/lib/plans"
-import { getRequestContext } from "@/server/context"
+import { getPageContext } from "@/server/context"
 import { listClientRows } from "@/server/services/clients"
 
 export default async function ClientsPage({
@@ -15,7 +17,7 @@ export default async function ClientsPage({
 }) {
   const { search } = await searchParams
   const query = search?.trim() || undefined
-  const ctx = await getRequestContext()
+  const ctx = await getPageContext()
   const [clients, total] = await Promise.all([
     listClientRows(ctx, query),
     query ? listClientRows(ctx).then((all) => all.length) : Promise.resolve(null),
@@ -31,6 +33,12 @@ export default async function ClientsPage({
             limit={getLimit(ctx.plan, "clients")}
             className="hidden w-48 sm:block"
           />
+          <Button asChild variant="outline">
+            <Link href="/dashboard/clients/import">
+              <FileUp className="h-4 w-4" />
+              Import
+            </Link>
+          </Button>
           <AddResourceButton resource="clients" label="Add Client" href="/dashboard/clients/new" />
         </div>
       </PageHeader>

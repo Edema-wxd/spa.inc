@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/shared/page-header"
 import { RangeTabs } from "@/components/shared/range-tabs"
 import { hasFeature } from "@/lib/plans"
 import { isRangePreset } from "@/lib/ranges"
-import { getRequestContext } from "@/server/context"
+import { getPageContext } from "@/server/context"
 import { getLeaderboardForPreset } from "@/server/services/analytics"
 
 export default async function StaffPerformancePage({
@@ -15,7 +15,7 @@ export default async function StaffPerformancePage({
 }) {
   const { range: rangeParam } = await searchParams
   const preset = isRangePreset(rangeParam) ? rangeParam : "30d"
-  const ctx = await getRequestContext()
+  const ctx = await getPageContext()
   // The segment layout shows the upgrade prompt on lower plans
   if (!hasFeature(ctx.plan, "performanceLeaderboard")) return null
   const { range, rows } = await getLeaderboardForPreset(ctx, preset)

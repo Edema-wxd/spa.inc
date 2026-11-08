@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { PaymentForm } from "@/components/payments/payment-form"
 import { EmptyState } from "@/components/shared/empty-state"
-import { getRequestContext } from "@/server/context"
+import { getPageContext } from "@/server/context"
 import { getPaymentFormData } from "@/server/services/payments"
 
 export default async function NewPaymentPage({
@@ -14,7 +14,7 @@ export default async function NewPaymentPage({
   searchParams: Promise<{ appointment?: string }>
 }) {
   const { appointment } = await searchParams
-  const data = await getPaymentFormData(await getRequestContext(), appointment)
+  const data = await getPaymentFormData(await getPageContext(), appointment)
 
   return (
     <div className="space-y-6">

@@ -4,10 +4,14 @@ A management dashboard for spas and massage businesses: a booking calendar, clie
 therapist schedules, payments, revenue analytics, expenses and profit & loss, plus a public pricing
 page and a sales enquiry form.
 
-The app currently runs as a **demo**: it simulates twelve months of a seven-therapist day spa in
-Austin (bookings generated from real working hours, payments, commission payroll and running
-costs) and needs no database or login to try. Every number on screen is computed from that data. The backend is structured so that switching to a real PostgreSQL database is a
-configuration change (see [Backend](#backend)).
+Anyone can start a 14-day free trial at `/signup` (no card), set up their spa from a checklist
+and take their first booking in minutes. `/demo` opens a sample business instead: twelve months
+of a seven-therapist day spa in Austin (bookings generated from real working hours, payments,
+commission payroll and running costs). Every number on screen is computed from that data.
+
+Out of the box everything runs in memory with on-screen sign-in codes, so it needs no database
+or email provider to try. Switching to PostgreSQL and Supabase Auth is configuration (see
+[Backend](#backend) and [`docs/AUTH.md`](docs/AUTH.md)).
 
 ## Quick start
 
@@ -19,9 +23,15 @@ npm run dev        # http://localhost:3000
 | Page | What's there |
 |------|--------------|
 | `/` | Landing page |
-| `/pricing` | Plans, comparison table, add-ons |
+| `/pricing` | Plans, comparison table, add-ons; every plan button starts a trial |
+| `/signup` | Start a 14-day trial: business, owner, country, timezone, plan after the trial |
+| `/login` | Sign in with a 6-digit email code |
+| `/demo` | Signs you into the sample spa (no account needed), with a "Start your free trial" banner |
 | `/contact-sales` | Enterprise / custom quote form |
-| `/dashboard` | The admin dashboard (no login needed in the demo) |
+| `/dashboard` | The dashboard (sign in or open `/demo` first) |
+| `/dashboard/welcome` | Setup checklist: services, team and hours, share the link, first booking |
+| `/dashboard/services` | Treatment menu, with a starter menu to pick from |
+| `/dashboard/clients/import` | Import clients from a CSV or a phone contacts export |
 | `/dashboard/calendar` | Day view by therapist, week view per therapist; click a free slot to book |
 | `/book/juniper-day-spa` | The demo business's public booking page (deposit checkout is a demo) |
 | `/dashboard/online-booking` | Booking link, deposit and no-show stats, booking rules, WhatsApp message log |
@@ -55,9 +65,12 @@ Copy `.env.example` to `.env.local`. Every variable is optional for the demo.
 | `PAYSTACK_SECRET_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Real deposits (demo checkout without them) |
 | `WHATSAPP_*` | WhatsApp Cloud API; without it messages are logged, not sent |
 | `CRON_SECRET` | Protects the hourly reminders job |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase Auth email codes (demo codes without them) |
+| `AUTH_SECRET` | Signs session and sign-up cookies; required with `DATA_SOURCE=prisma` |
+| `ALLOW_DEMO` | `true` keeps `/demo` and demo codes on with `DATA_SOURCE=prisma` (staging only) |
 
 Online booking setup (providers, webhooks, WhatsApp templates): [`docs/ONLINE_BOOKING.md`](docs/ONLINE_BOOKING.md).
-| `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY` | Reserved for Supabase Auth (not wired up yet) |
+Sign-in setup: [`docs/AUTH.md`](docs/AUTH.md).
 
 ## Plans and pricing
 
@@ -109,7 +122,8 @@ come from the `subscriptions` table.
 prisma/schema.prisma        PostgreSQL schema (multi-tenant)
 src/app/api/**/route.ts     HTTP layer: parse + validate input, call a service, return JSON
 src/server/
-  context.ts                who is calling: organization, user, role, plan
+  context.ts                who is calling: organization, user, role, plan (from the session)
+  auth/                     sign-in providers: Supabase email codes, or demo codes
   entitlements.ts           assertFeature / assertCanAdd / assertRole
   errors.ts, http.ts        error types and the response envelope
   services/                 business rules (one file per domain)
@@ -137,6 +151,16 @@ Every response uses the same shape:
 
 | Method | Route | Notes |
 |--------|-------|-------|
+| POST | `/api/auth/signup` | Public: checks the details and emails a code; the business is created when the code is verified |
+| POST | `/api/auth/login` | Public: emails a sign-in code |
+| POST | `/api/auth/verify` | Public: checks the code, creates the business on sign-up, sets the session |
+| POST | `/api/auth/logout` | Ends the session |
+| GET | `/api/onboarding` | Setup checklist progress |
+| POST | `/api/onboarding/progress` | Marks the link shared, or hides the checklist |
+| POST | `/api/onboarding/team` | Add a therapist with weekly hours |
+| GET, POST | `/api/services` | Treatment menu; POST adds one (or a starter menu) |
+| PUT | `/api/services/[id]` | Edit a treatment, or turn it off (`is_active: false`) |
+| POST | `/api/clients/import` | Up to 2,000 rows; skips phone numbers already on file, stops at the client limit |
 | GET, POST | `/api/clients` | `?search=`; POST checks the client limit |
 | GET, PUT, DELETE | `/api/clients/[id]` | |
 | GET | `/api/clients/[id]/history` | Appointments and payments |
@@ -165,7 +189,7 @@ Every response uses the same shape:
 | GET | `/api/analytics/pnl` | `?months=6`, Executive+ |
 | GET, POST | `/api/users` | Team; POST checks the admin seat limit |
 | GET, POST | `/api/locations` | POST checks the location limit (Enterprise for more than 1) |
-| GET, PUT | `/api/plan` | Plan and usage; PUT switches plan (demo only) |
+| GET, PUT | `/api/plan` | Plan, trial and usage; PUT switches the demo plan, or picks the plan a trial continues on |
 | POST | `/api/sales-leads` | Public, from `/contact-sales` |
 
 ### Connecting a database
@@ -173,15 +197,16 @@ Every response uses the same shape:
 1. Create a Supabase project and put its connection strings in `.env.local`
    (`DATABASE_URL`, `DIRECT_URL`).
 2. `npm run db:migrate -- --name init`
-3. Set `DATA_SOURCE=prisma` and restart.
+3. Set `DATA_SOURCE=prisma`, `AUTH_SECRET` and the Supabase Auth keys ([`docs/AUTH.md`](docs/AUTH.md)), then restart.
 
 ### Roadmap
 
 The full plan, with action steps for each item, is in [`docs/ACTION_PLAN.md`](docs/ACTION_PLAN.md).
 
-- [ ] Supabase Auth: replace the demo user in `src/server/context.ts` with the session, and add
-      route protection for `/dashboard`
-- [ ] Load each organization's plan from `subscriptions` instead of the demo cookie
+- [x] Sign-up with a 14-day reverse trial, email-code sign-in (Supabase Auth), route protection
+- [x] Each organization's plan comes from `subscriptions` (the demo keeps its plan switcher)
+- [x] Setup checklist, starter treatment menu, CSV client import
+- [ ] Phone / WhatsApp sign-in codes, team invite emails
 - [ ] Billing checkout and webhooks (Paystack for NGN, a USD provider for everyone else)
 - [x] Booking calendar with clash and working-hours checks
 - [x] Every dashboard page on services; realistic generated demo data, no hardcoded numbers

@@ -36,7 +36,7 @@ export default async function PricingPage({
           <p className="mt-4 text-lg text-muted-foreground">
             Whether you work solo, run one location, or manage several branches,
             there is a plan for you. Save {Math.round(ANNUAL_DISCOUNT * 100)}% with
-            annual billing, or try Essentials free for {FREE_TRIAL_DAYS} days.
+            annual billing. Every plan starts with {FREE_TRIAL_DAYS} days of everything, free.
           </p>
         </section>
 

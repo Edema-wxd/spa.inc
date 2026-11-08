@@ -3,6 +3,8 @@
 import { useSessionUser } from "@/components/layout/session-user"
 import { getInitials } from "@/lib/utils"
 import { Menu, CalendarPlus, Search, LogOut, User, Settings } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { apiFetch } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -23,8 +25,15 @@ interface HeaderProps {
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
-  const { planName } = usePlan()
+  const { planName, trial, isDemo } = usePlan()
   const user = useSessionUser()
+  const router = useRouter()
+
+  async function signOut() {
+    await apiFetch("/api/auth/logout", { method: "POST" }).catch(() => null)
+    router.push(isDemo ? "/" : "/login")
+    router.refresh()
+  }
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b bg-background px-4 md:px-6">
@@ -60,11 +69,13 @@ export function Header({ onMenuClick }: HeaderProps) {
         </form>
 
         {/* Current plan */}
-        <Link href="/dashboard/settings?tab=plan" title="Plan & Billing">
-          <Badge variant="outline" className="border-spa-accent text-spa-accent">
-            {planName} plan
-          </Badge>
-        </Link>
+        {user.role === "ADMIN" && (
+          <Link href="/dashboard/settings?tab=plan" title="Plan & Billing" className="hidden sm:block">
+            <Badge variant="outline" className="border-spa-accent text-spa-accent">
+              {trial ? `Trial: ${trial.daysLeft} day${trial.daysLeft === 1 ? "" : "s"} left` : `${planName} plan`}
+            </Badge>
+          </Link>
+        )}
 
         {/* Quick booking */}
         <Button asChild size="sm" className="hidden sm:inline-flex">
@@ -110,9 +121,9 @@ export function Header({ onMenuClick }: HeaderProps) {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive">
+            <DropdownMenuItem variant="destructive" onSelect={signOut}>
               <LogOut className="size-4" />
-              Logout
+              Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

@@ -17,6 +17,7 @@ import type {
   Expense,
   Message,
   Organization,
+  Subscription,
   Location,
   Payment,
   SalesLead,
@@ -69,13 +70,28 @@ export interface UserRepository {
   list(orgId: string, filter?: { role?: UserRole; activeOnly?: boolean }): Promise<User[]>
   get(orgId: string, id: string): Promise<User | null>
   count(orgId: string, filter?: { role?: UserRole; activeOnly?: boolean }): Promise<number>
-  create(orgId: string, input: UserInviteInput): Promise<User>
-  update(orgId: string, id: string, input: StaffUpdateInput): Promise<User | null>
+  create(orgId: string, input: UserInviteInput & { is_bookable?: boolean; auth_user_id?: string | null }): Promise<User>
+  update(orgId: string, id: string, input: StaffUpdateInput & { is_bookable?: boolean }): Promise<User | null>
+  /** Sign-in: find the person behind an auth identity (searches every organization). */
+  findByAuthUserId(authUserId: string): Promise<{ organizationId: string; user: User } | null>
+  /** Sign-in: link an invited person by email the first time they sign in (every organization). */
+  findByEmail(email: string): Promise<{ organizationId: string; user: User } | null>
+  linkAuthUser(orgId: string, id: string, authUserId: string): Promise<User | null>
+}
+
+export interface ServiceInputData {
+  name: string
+  description: string
+  default_duration_minutes: number
+  default_price: number
+  is_active: boolean
 }
 
 export interface ServiceRepository {
   list(orgId: string): Promise<Service[]>
   get(orgId: string, id: string): Promise<Service | null>
+  create(orgId: string, input: ServiceInputData): Promise<Service>
+  update(orgId: string, id: string, input: Partial<ServiceInputData>): Promise<Service | null>
 }
 
 export interface AppointmentRepository {
@@ -125,6 +141,29 @@ export interface OrganizationRepository {
   /** Every organization, for scheduled jobs. */
   listAll(): Promise<Organization[]>
   updateBookingSettings(orgId: string, settings: BookingSettings): Promise<Organization | null>
+  updateOnboarding(orgId: string, patch: Partial<Organization["onboarding"]>): Promise<Organization | null>
+  /**
+   * Sign-up: the business, its first location, the owner and a trial
+   * subscription, created together (one transaction on Postgres).
+   */
+  createWithOwner(input: NewOrganizationData): Promise<{ organization: Organization; owner: User }>
+}
+
+export interface NewOrganizationData {
+  name: string
+  slug: string
+  country_code: string
+  currency: Organization["currency"]
+  timezone: string
+  phone: string
+  owner: { full_name: string; email: string; phone: string; auth_user_id: string }
+  plan: Subscription["plan"]
+  trial_ends_at: string
+}
+
+export interface SubscriptionRepository {
+  get(orgId: string): Promise<Subscription | null>
+  update(orgId: string, input: Partial<Pick<Subscription, "plan" | "status" | "trial_ends_at">>): Promise<Subscription | null>
 }
 
 export type DepositCreateData = Omit<Deposit, "id" | "created_at" | "updated_at">
@@ -161,6 +200,7 @@ export interface Repositories {
   schedules: ScheduleRepository
   locations: LocationRepository
   organizations: OrganizationRepository
+  subscriptions: SubscriptionRepository
   deposits: DepositRepository
   messages: MessageRepository
   salesLeads: SalesLeadRepository

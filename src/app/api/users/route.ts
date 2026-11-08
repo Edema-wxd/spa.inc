@@ -7,5 +7,5 @@ export const GET = route(async () => ok(await listTeam(await getRequestContext()
 
 export const POST = route(async (request) => {
   const input = await parseBody(request, userInviteSchema)
-  return created(await inviteUser(await getRequestContext(), input), "Invitation sent")
+  return created(await inviteUser(await getRequestContext(), input), "Added. They can sign in with their email.")
 })

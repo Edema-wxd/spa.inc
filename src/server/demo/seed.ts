@@ -23,6 +23,7 @@ import type {
   Location,
   Message,
   Organization,
+  Subscription,
   Payment,
   PaymentMethod,
   Service,
@@ -57,11 +58,13 @@ export interface DemoData {
   schedules: StaffSchedule[]
   locations: Location[]
   organization: Organization
+  subscription: Subscription
   deposits: Deposit[]
   messages: Message[]
 }
 
 export const DEMO_SLUG = "juniper-day-spa"
+export const DEMO_ORGANIZATION_ID = "org-demo"
 const BUSINESS_NAME = "Juniper Day Spa"
 /** Online booking with a $20 deposit went live this many days ago */
 const ONLINE_LAUNCH_DAYS = 120
@@ -369,7 +372,10 @@ function buildAppointments(
         const remote = MOBILE_STAFF.has(member.id) && rng.chance(0.3)
 
         const leadDays = rng.int(0, 16)
-        const createdAt = new Date(Math.min(now.getTime(), start.getTime() - leadDays * 86_400_000 - rng.int(1, 600) * 60_000))
+        const plannedAt = start.getTime() - leadDays * 86_400_000 - rng.int(1, 600) * 60_000
+        // Far-ahead bookings would be "created" in the future; spread them over the past week instead
+        // of piling them onto right now (derived from seq so the rng sequence stays stable)
+        const createdAt = new Date(plannedAt <= now.getTime() ? plannedAt : now.getTime() - (((seq * 7919) % (7 * 24 * 60)) + 10) * 60_000)
 
         // After launch, a growing share of clients book themselves online and pay a deposit
         const sinceLaunch = createdAt.getTime() - launch
@@ -699,7 +705,7 @@ export function buildDemoData(now = new Date()): DemoData {
   const todayKey = dateKeyInZone(now, DEMO_TIMEZONE)
   const startKey = monthsBefore(todayKey, HISTORY_MONTHS)
 
-  const users = structuredClone(usersSeed)
+  const users = seedUsers()
   const services = structuredClone(servicesSeed)
   const schedules = structuredClone(schedulesSeed)
   const therapists = users.filter((u) => u.role === "STAFF" && u.is_active)
@@ -725,12 +731,28 @@ export function buildDemoData(now = new Date()): DemoData {
       deposit_value: DEMO_DEPOSIT_CENTS,
       welcome_message: "Massage and bodywork on South Lamar. Book in under a minute, pay a small deposit, and get a WhatsApp reminder the day before.",
     }),
+    subscription: demoSubscription(),
     deposits,
     messages,
   }
 }
 
-function demoOrganization(booking: Partial<Organization["booking"]> = {}): Organization {
+function seedUsers(): User[] {
+  return structuredClone(usersSeed).map((u) => ({ ...u, is_bookable: u.role === "STAFF", auth_user_id: null }))
+}
+
+function demoSubscription(): Subscription {
+  return {
+    organization_id: "org-demo",
+    plan: "executive",
+    status: "ACTIVE",
+    trial_ends_at: null,
+    created_at: "2024-01-15T09:00:00Z",
+    updated_at: "2024-01-15T09:00:00Z",
+  }
+}
+
+function demoOrganization(booking: Partial<Organization["booking"]> = {}, onboarded = true): Organization {
   return {
     id: "org-demo",
     name: BUSINESS_NAME,
@@ -738,6 +760,10 @@ function demoOrganization(booking: Partial<Organization["booking"]> = {}): Organ
     country_code: "US",
     currency: "USD",
     booking: { ...DEFAULT_BOOKING_SETTINGS, ...booking },
+    is_demo: true,
+    onboarding: onboarded
+      ? { link_shared_at: "2024-01-16T09:00:00Z", dismissed_at: "2024-01-16T09:00:00Z" }
+      : { link_shared_at: null, dismissed_at: null },
     created_at: "2024-01-15T09:00:00Z",
     updated_at: "2024-01-15T09:00:00Z",
   }
@@ -758,7 +784,7 @@ function demoLocation(): Location {
 
 /** Starting point for NEXT_PUBLIC_DEMO_EMPTY=true: just the signed-in owner and one location. */
 export function buildEmptyData(): DemoData {
-  const owner = structuredClone(usersSeed.filter((u) => u.id === "admin-001"))
+  const owner = seedUsers().filter((u) => u.id === "admin-001")
   return {
     users: owner,
     clients: [],
@@ -768,7 +794,9 @@ export function buildEmptyData(): DemoData {
     expenses: [],
     schedules: [],
     locations: [demoLocation()],
-    organization: demoOrganization(),
+    // Empty mode previews a brand-new account, onboarding checklist included
+    organization: demoOrganization({}, false),
+    subscription: demoSubscription(),
     deposits: [],
     messages: [],
   }

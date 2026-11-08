@@ -4,7 +4,7 @@ import { SummaryCard } from "@/components/shared/summary-card"
 import { ShareCard } from "@/components/online-booking/share-card"
 import { BookingSettingsForm } from "@/components/online-booking/booking-settings-form"
 import { MessageLog } from "@/components/online-booking/message-log"
-import { getRequestContext } from "@/server/context"
+import { getPageContext } from "@/server/context"
 import { getOnlineBookingOverview } from "@/server/services/booking-settings"
 
 function ProviderStatus({ ok, title, detail }: { ok: boolean; title: string; detail: string }) {
@@ -21,7 +21,7 @@ function ProviderStatus({ ok, title, detail }: { ok: boolean; title: string; det
 }
 
 export default async function OnlineBookingPage() {
-  const data = await getOnlineBookingOverview(await getRequestContext())
+  const data = await getOnlineBookingOverview(await getPageContext())
   const { stats, providers } = data
   const effect =
     stats.noShowWithDeposit !== null && stats.noShowWithout !== null

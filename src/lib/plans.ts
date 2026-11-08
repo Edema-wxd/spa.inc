@@ -137,6 +137,12 @@ export interface PlanUsage {
   planName: string
   features: Feature[]
   usage: Record<LimitedResource, { used: number; limit: number | null }>
+  /** The demo business (plan switcher instead of a subscription) */
+  isDemo: boolean
+  /** Reverse trial: full product until it ends, then `chosenPlan` */
+  trial: { endsAt: string; daysLeft: number; chosenPlan: TierId; chosenPlanName: string } | null
+  /** The plan that applies after the trial (or now, when not trialing) */
+  chosenPlan: TierId
 }
 
 // ---------------------------------------------------------------------------

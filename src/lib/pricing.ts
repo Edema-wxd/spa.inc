@@ -60,7 +60,7 @@ export const pricingTiers: PricingTier[] = [
       "Online booking page",
       "Payment logging",
     ],
-    cta: { label: `Start ${FREE_TRIAL_DAYS}-day free trial`, href: "/login" },
+    cta: { label: `Start ${FREE_TRIAL_DAYS}-day free trial`, href: "/signup?plan=essentials" },
   },
   {
     id: "manager",
@@ -70,6 +70,7 @@ export const pricingTiers: PricingTier[] = [
       "For a single-location spa with a small team that needs scheduling and revenue insight.",
     prices: { USD: 49, NGN: 35000 },
     mostPopular: true,
+    freeTrial: true,
     highlights: [
       `${PLAN_LIMITS.manager.admins} admin accounts`,
       `Up to ${formatLimit(PLAN_LIMITS.manager.clients)} clients`,
@@ -77,7 +78,7 @@ export const pricingTiers: PricingTier[] = [
       "WhatsApp confirmations & reminders",
       "Staff schedules & revenue analytics",
     ],
-    cta: { label: "Get started", href: "/login" },
+    cta: { label: `Start ${FREE_TRIAL_DAYS}-day free trial`, href: "/signup?plan=manager" },
   },
   {
     id: "executive",
@@ -86,6 +87,7 @@ export const pricingTiers: PricingTier[] = [
     description:
       "For busy single-location spas with a larger team and full financial reporting.",
     prices: { USD: 99, NGN: 75000 },
+    freeTrial: true,
     highlights: [
       "Unlimited admin accounts",
       `Up to ${formatLimit(PLAN_LIMITS.executive.clients)} clients`,
@@ -93,7 +95,7 @@ export const pricingTiers: PricingTier[] = [
       "Profit & Loss reports",
       "Email confirmations",
     ],
-    cta: { label: "Get started", href: "/login" },
+    cta: { label: `Start ${FREE_TRIAL_DAYS}-day free trial`, href: "/signup?plan=executive" },
   },
   {
     id: "enterprise",

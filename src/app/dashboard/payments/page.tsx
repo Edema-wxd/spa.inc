@@ -1,10 +1,10 @@
 import { PageHeader } from "@/components/shared/page-header"
 import { PaymentsTable } from "@/components/payments/payments-table"
-import { getRequestContext } from "@/server/context"
+import { getPageContext } from "@/server/context"
 import { listPaymentRows } from "@/server/services/payments"
 
 export default async function PaymentsPage() {
-  const payments = await listPaymentRows(await getRequestContext())
+  const payments = await listPaymentRows(await getPageContext())
 
   return (
     <div className="space-y-6">

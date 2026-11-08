@@ -7,6 +7,7 @@ import type {
   Deposit as DbDeposit,
   Message as DbMessage,
   Organization as DbOrganization,
+  Subscription as DbSubscription,
   Expense as DbExpense,
   Location as DbLocation,
   Payment as DbPayment,
@@ -24,6 +25,7 @@ import type {
   Deposit,
   Message,
   Organization,
+  Subscription,
   Expense,
   Location,
   Payment,
@@ -65,6 +67,8 @@ function toUser(u: DbUser): User {
     phone: u.phone ?? "",
     avatar_url: u.avatarUrl ?? "",
     is_active: u.isActive,
+    is_bookable: u.isBookable,
+    auth_user_id: u.authUserId,
     created_at: iso(u.createdAt),
     updated_at: iso(u.updatedAt),
   }
@@ -206,6 +210,11 @@ function toOrganization(o: DbOrganization & { bookingSettings: DbBookingSettings
     country_code: o.countryCode,
     currency: o.currency,
     booking: toBookingSettings(o.bookingSettings),
+    is_demo: o.isDemo,
+    onboarding: {
+      link_shared_at: o.onboardingLinkSharedAt && iso(o.onboardingLinkSharedAt),
+      dismissed_at: o.onboardingDismissedAt && iso(o.onboardingDismissedAt),
+    },
     created_at: iso(o.createdAt),
     updated_at: iso(o.updatedAt),
   }
@@ -262,6 +271,19 @@ function appointmentSystemData(input: AppointmentPatch) {
 }
 
 const withSettings = { bookingSettings: true } as const
+
+function toSubscription(s: DbSubscription): Subscription {
+  return {
+    organization_id: s.organizationId,
+    plan: s.plan.toLowerCase() as Subscription["plan"],
+    status: s.status,
+    trial_ends_at: s.trialEndsAt && iso(s.trialEndsAt),
+    created_at: iso(s.createdAt),
+    updated_at: iso(s.updatedAt),
+  }
+}
+
+const toPlanTier = (plan: Subscription["plan"]) => plan.toUpperCase() as DbSubscription["plan"]
 
 function dateFilter(range: DateRange) {
   if (!range.from && !range.to) return undefined
@@ -375,15 +397,16 @@ export const prismaRepositories: Repositories = {
       })
     },
     async create(orgId, input) {
-      // TODO: create the Supabase auth user first and reuse its id
       const row = await getPrisma().user.create({
         data: {
           id: crypto.randomUUID(),
           organizationId: orgId,
           email: input.email,
           fullName: input.full_name,
-          phone: input.phone,
+          phone: input.phone && normalizePhone(input.phone),
           role: input.role,
+          isBookable: input.is_bookable ?? input.role === "STAFF",
+          authUserId: input.auth_user_id ?? null,
         },
       })
       return toUser(row)
@@ -391,8 +414,25 @@ export const prismaRepositories: Repositories = {
     async update(orgId, id, input) {
       const { count } = await getPrisma().user.updateMany({
         where: { id, organizationId: orgId },
-        data: { fullName: input.full_name, phone: input.phone, isActive: input.is_active },
+        data: {
+          fullName: input.full_name,
+          phone: input.phone,
+          isActive: input.is_active,
+          isBookable: input.is_bookable,
+        },
       })
+      return count ? this.get(orgId, id) : null
+    },
+    async findByAuthUserId(authUserId) {
+      const row = await getPrisma().user.findUnique({ where: { authUserId } })
+      return row && { organizationId: row.organizationId, user: toUser(row) }
+    },
+    async findByEmail(email) {
+      const row = await getPrisma().user.findFirst({ where: { email: { equals: email.trim(), mode: "insensitive" } } })
+      return row && { organizationId: row.organizationId, user: toUser(row) }
+    },
+    async linkAuthUser(orgId, id, authUserId) {
+      const { count } = await getPrisma().user.updateMany({ where: { id, organizationId: orgId }, data: { authUserId } })
       return count ? this.get(orgId, id) : null
     },
   },
@@ -408,6 +448,32 @@ export const prismaRepositories: Repositories = {
     async get(orgId, id) {
       const row = await getPrisma().service.findFirst({ where: { id, organizationId: orgId } })
       return row && toService(row)
+    },
+    async create(orgId, input) {
+      const row = await getPrisma().service.create({
+        data: {
+          organizationId: orgId,
+          name: input.name,
+          description: input.description,
+          defaultDurationMinutes: input.default_duration_minutes,
+          defaultPrice: input.default_price,
+          isActive: input.is_active,
+        },
+      })
+      return toService(row)
+    },
+    async update(orgId, id, input) {
+      const { count } = await getPrisma().service.updateMany({
+        where: { id, organizationId: orgId },
+        data: {
+          name: input.name,
+          description: input.description,
+          defaultDurationMinutes: input.default_duration_minutes,
+          defaultPrice: input.default_price,
+          isActive: input.is_active,
+        },
+      })
+      return count ? this.get(orgId, id) : null
     },
   },
 
@@ -640,6 +706,71 @@ export const prismaRepositories: Repositories = {
         update: data,
       })
       return this.get(orgId)
+    },
+    async updateOnboarding(orgId, patch) {
+      await getPrisma().organization.update({
+        where: { id: orgId },
+        data: {
+          onboardingLinkSharedAt: nullableDate(patch.link_shared_at),
+          onboardingDismissedAt: nullableDate(patch.dismissed_at),
+        },
+      })
+      return this.get(orgId)
+    },
+    async createWithOwner(input) {
+      const prisma = getPrisma()
+      const [organization, owner] = await prisma.$transaction(async (tx) => {
+        const org = await tx.organization.create({
+          data: {
+            name: input.name,
+            slug: input.slug,
+            countryCode: input.country_code,
+            currency: input.currency,
+            bookingSettings: { create: {} },
+            subscription: {
+              create: {
+                plan: toPlanTier(input.plan),
+                status: "TRIALING",
+                currency: input.currency,
+                trialEndsAt: new Date(input.trial_ends_at),
+              },
+            },
+            locations: { create: { name: input.name, phone: normalizePhone(input.phone), timezone: input.timezone } },
+          },
+          include: withSettings,
+        })
+        const user = await tx.user.create({
+          data: {
+            id: crypto.randomUUID(),
+            organizationId: org.id,
+            authUserId: input.owner.auth_user_id,
+            email: input.owner.email,
+            fullName: input.owner.full_name,
+            phone: normalizePhone(input.owner.phone),
+            role: "ADMIN",
+          },
+        })
+        return [org, user] as const
+      })
+      return { organization: toOrganization(organization), owner: toUser(owner) }
+    },
+  },
+
+  subscriptions: {
+    async get(orgId) {
+      const row = await getPrisma().subscription.findUnique({ where: { organizationId: orgId } })
+      return row && toSubscription(row)
+    },
+    async update(orgId, input) {
+      const row = await getPrisma().subscription.update({
+        where: { organizationId: orgId },
+        data: {
+          plan: input.plan && toPlanTier(input.plan),
+          status: input.status,
+          trialEndsAt: nullableDate(input.trial_ends_at),
+        },
+      })
+      return toSubscription(row)
     },
   },
 

@@ -160,7 +160,7 @@ export async function getLeaderboard(ctx: RequestContext, range: DateRange): Pro
   const repos = await getRepositories()
   const { timezone } = await getBusinessClock(ctx)
   const [staff, appointments, payments] = await Promise.all([
-    repos.users.list(ctx.organizationId, { role: "STAFF", activeOnly: true }),
+    repos.users.list(ctx.organizationId, { activeOnly: true }).then((rows) => rows.filter((u) => u.is_bookable)),
     listAppointmentsByLocalDate(ctx, timezone, range),
     repos.payments.list(ctx.organizationId, range),
   ])

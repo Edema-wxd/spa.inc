@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation"
 import { Sparkles, ChevronLeft, ChevronRight, Lock } from "lucide-react"
 import { cn, getInitials } from "@/lib/utils"
 import { usePlan } from "@/components/plan/plan-provider"
-import { navSections } from "./nav-items"
+import { navFor } from "./nav-items"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -59,7 +59,7 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
       {/* Navigation */}
       <ScrollArea className="flex-1 py-4">
         <nav className="flex flex-col gap-6 px-3">
-          {navSections.map((section) => (
+          {navFor(user.role).map((section) => (
             <div key={section.title}>
               {!collapsed && (
                 <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">

@@ -25,6 +25,9 @@ const segmentLabels: Record<string, string> = {
   settings: "Settings",
   calendar: "Calendar",
   "online-booking": "Online Booking",
+  services: "Services",
+  welcome: "Get started",
+  import: "Import",
   new: "New",
 }
 

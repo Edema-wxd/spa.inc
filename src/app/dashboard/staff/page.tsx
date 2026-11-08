@@ -1,11 +1,11 @@
 import { PageHeader } from "@/components/shared/page-header"
 import { StaffTable } from "@/components/staff/staff-table"
 import { hasFeature } from "@/lib/plans"
-import { getRequestContext } from "@/server/context"
+import { getPageContext } from "@/server/context"
 import { listStaffRows } from "@/server/services/users"
 
 export default async function StaffPage() {
-  const ctx = await getRequestContext()
+  const ctx = await getPageContext()
   // The segment layout shows the upgrade prompt on lower plans
   if (!hasFeature(ctx.plan, "staffManagement")) return null
   const staff = await listStaffRows(ctx)

@@ -6,13 +6,13 @@ import { DailyPnLChart } from "@/components/charts/daily-pnl-chart"
 import { ExpenseBreakdown } from "@/components/finances/expense-breakdown"
 import { hasFeature } from "@/lib/plans"
 import { formatCurrency } from "@/lib/utils"
-import { getRequestContext } from "@/server/context"
+import { getPageContext } from "@/server/context"
 import { getExpenseCategories, getProfitAndLoss, getRunningProfit } from "@/server/services/analytics"
 
 const FULL_MONTHS = 6
 
 export default async function PnLPage() {
-  const ctx = await getRequestContext()
+  const ctx = await getPageContext()
   // The segment layout shows the upgrade prompt on lower plans
   if (!hasFeature(ctx.plan, "profitAndLoss")) return null
 

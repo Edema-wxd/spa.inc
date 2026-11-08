@@ -21,7 +21,7 @@ import { ScheduleGrid } from "@/components/staff/schedule-grid"
 import { getInitials, formatCurrency, formatPhone, formatDate } from "@/lib/utils"
 import { hasFeature } from "@/lib/plans"
 import { NotFoundError } from "@/server/errors"
-import { getRequestContext } from "@/server/context"
+import { getPageContext } from "@/server/context"
 import { getStaffProfile } from "@/server/services/users"
 
 interface StaffDetailPageProps {
@@ -29,7 +29,7 @@ interface StaffDetailPageProps {
 }
 
 async function loadProfile(id: string) {
-  const ctx = await getRequestContext()
+  const ctx = await getPageContext()
   // The segment layout shows the upgrade prompt on lower plans
   if (!hasFeature(ctx.plan, "staffManagement")) return "locked" as const
   try {

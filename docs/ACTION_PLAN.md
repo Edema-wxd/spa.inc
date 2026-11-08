@@ -8,7 +8,7 @@ work, in order. Each item lists the action steps, the files involved and how we 
 |---|------|--------|
 | 1 | Calendar and booking | **Done** (follow-ups listed) |
 | 2 | Public booking page with deposits and WhatsApp reminders | **Done** (needs provider keys to go live) |
-| 3 | Real sign-up and onboarding | Not started |
+| 3 | Real sign-up and onboarding | **Done** (needs Supabase keys to go live) |
 | 4 | Pricing and currency rework | Not started |
 | 5 | Honest demo on real services | **Done** (follow-ups listed) |
 | 6 | Trust and correctness fixes | Partly done (booking and payment paths) |
@@ -131,30 +131,58 @@ The original 32 booking checks still pass.
 
 ---
 
-## 3. Real sign-up and onboarding
+## 3. Real sign-up and onboarding (done)
 
-**Why:** today every pricing button goes to a login form that only logs to the console.
-Nobody can become a customer without talking to us.
+**Why:** every pricing button went to a login form that only logged to the console. Nobody could
+become a customer without talking to us.
 
-**Action steps**
+**What shipped** (setup guide: [`docs/AUTH.md`](AUTH.md))
 
-1. Supabase Auth (email magic link and phone OTP). Replace `getRequestContext()` in
-   `src/server/context.ts` with the session: load the user, their organization and the
-   subscription. Add `middleware.ts` to protect `/dashboard/*` and redirect staff away from
-   admin pages.
-2. `/signup`: business name, owner name, phone, country (sets currency and timezone). Creates the
-   organization, location, owner user and a trial subscription in one transaction.
-3. Onboarding checklist on the dashboard until complete: add services (with a starter menu to
-   pick from), add therapists and their hours, share the booking link, make a first booking.
-   Target: first booking in under 10 minutes.
-4. Import clients from CSV or a phone's contacts export.
-5. Reverse trial: 14 days of the full product (Executive features), then drop to the chosen plan.
-   Trial users should see the analytics and P&L we sell, not the smallest plan.
-6. Wire the pricing page buttons to `/signup?plan=<tier>`.
-7. Move the demo to `/demo` with a "Start free" banner, so prospects can try it without signing up.
+- Sign-in with a 6-digit email code: Supabase Auth when its keys are set, on-screen demo codes
+  otherwise. No passwords. Codes are rate limited per IP and per email.
+- Sessions replace the fixed demo admin: `getRequestContext()` (APIs, throws 401) and
+  `getPageContext()` (pages, redirects to `/login`) load the user, their organization and the
+  plan. `src/proxy.ts` protects `/dashboard/*` and refreshes Supabase sessions. Staff are kept to
+  the calendar (and recording a payment), with a reduced menu.
+- `/signup`: business name, owner, phone, email, country (sets currency) and timezone (guessed
+  from the browser), plan after the trial. The business is created only once the email code is
+  verified: organization, location, owner, booking settings and a `TRIALING` subscription in one
+  transaction, with a unique booking link.
+- Reverse trial: 14 days of everything (Executive features), then the chosen plan. The header
+  shows the days left; a banner appears in the last 3 days; Settings > Plan & Billing lets the
+  owner change the plan the trial continues on.
+- `/dashboard/welcome` setup checklist (also a banner on the dashboard home until done or
+  hidden): pick treatments from a starter menu priced for the country, add therapists with
+  weekly hours (the owner can mark themselves bookable), share the booking link (copy or
+  WhatsApp), take a first booking. Progress comes from real data, not ticked boxes.
+- `/dashboard/services`: treatment menu (add, edit, turn off). Who takes bookings is now
+  `users.is_bookable`, so a solo owner can be their own therapist.
+- `/dashboard/clients/import`: CSV or phone contacts export, columns guessed from the header and
+  adjustable, preview first, duplicates (same phone) skipped, stops at the plan's client limit
+  with a clear count.
+- Every pricing button goes to `/signup?plan=<tier>` (Enterprise to contact sales). New landing
+  page. The demo moved to `/demo` with a "Start your free trial" banner; a demo visitor who
+  signs up gets their own business, not the demo's.
+- Data model: `users.auth_user_id`, `users.is_bookable`, organization onboarding fields;
+  repositories gained services create/update, `createWithOwner`, subscriptions.
 
-**Done when:** a stranger can go from the pricing page to a working calendar without help, and
-`DATA_SOURCE=prisma` runs with real sessions.
+**Verified:** 51 scripted account checks (route protection, forged cookies, sign-up validation,
+duplicate emails, wrong codes, tenant isolation between two new businesses and the demo, staff
+restrictions, trial plan and plan choice, starter menu, team, checklist progress, CSV import with
+duplicates and the client limit, demo visitor converting), a browser run from the landing page to
+a client booking the new spa online (about 20 seconds scripted), and the earlier 56 online
+booking and 32 calendar checks.
+
+**Follow-ups**
+
+1. Real-world run with a Supabase project: email template with `{{ .Token }}`, custom SMTP.
+2. Phone / WhatsApp codes (many owners in Nigeria live on WhatsApp, not email).
+3. Team invite emails; today the owner adds a member and tells them to sign in with that email.
+4. Staff see all clients and bookings; scope them to their own (item 6).
+5. Billing at trial end (item 4); today the business just moves to its chosen plan.
+6. Sign-up funnel analytics (started, verified, first service, first booking) to measure the
+   10-minute target with real users.
+7. Database seed for the demo business so `/demo` works with `DATA_SOURCE=prisma`.
 
 ---
 

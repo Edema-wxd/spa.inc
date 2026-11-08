@@ -3,11 +3,11 @@ import { ClientForm } from "@/components/clients/client-form"
 import { UpgradePrompt } from "@/components/plan/upgrade-prompt"
 import { Card, CardContent } from "@/components/ui/card"
 import { canAdd, formatCount, getLimit, minimumPlanForCount } from "@/lib/plans"
-import { getRequestContext } from "@/server/context"
+import { getPageContext } from "@/server/context"
 import { getRepositories } from "@/server/repositories"
 
 export default async function NewClientPage() {
-  const ctx = await getRequestContext()
+  const ctx = await getPageContext()
   const count = await (await getRepositories()).clients.count(ctx.organizationId)
 
   return (

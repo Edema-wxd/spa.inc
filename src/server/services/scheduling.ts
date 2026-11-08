@@ -33,16 +33,16 @@ export function isBlocking(a: Pick<Appointment, "status" | "hold_expires_at">, n
   return false
 }
 
-/** Therapists who can take bookings: active staff members. */
+/** People who can take bookings: active therapists, and owners who also do treatments. */
 export async function listBookableStaff(ctx: RequestContext): Promise<User[]> {
   const { users } = await getRepositories()
-  return users.list(ctx.organizationId, { role: "STAFF", activeOnly: true })
+  return (await users.list(ctx.organizationId, { activeOnly: true })).filter((u) => u.is_bookable)
 }
 
 export async function requireBookableStaff(ctx: RequestContext, staffId: string) {
   const { users } = await getRepositories()
   const staff = await users.get(ctx.organizationId, staffId)
-  if (!staff || staff.role !== "STAFF") throw new ApiError(422, "VALIDATION_ERROR", "Therapist does not exist")
+  if (!staff || !staff.is_bookable) throw new ApiError(422, "VALIDATION_ERROR", "Therapist does not exist")
   if (!staff.is_active) throw new ApiError(422, "VALIDATION_ERROR", `${staff.full_name} is inactive and can't take bookings`)
   return staff
 }

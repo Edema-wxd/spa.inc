@@ -133,9 +133,10 @@ export function BookingDialog({ open, onOpenChange, draft, options, timezone, to
       .then(({ data }) => {
         if (cancelled) return
         setLoaded({ key: requestKey, data, error: null })
-        // Drop a preselected time that is no longer free
+        // Drop a preselected time that is no longer free. Wait for a service: without one the
+        // check uses a default length, which would drop a slot that fits a shorter treatment.
         const current = form.getValues("time")
-        if (current && !form.getValues("allow_outside_hours") && !data.slots.includes(current)) {
+        if (serviceId && current && !form.getValues("allow_outside_hours") && !data.slots.includes(current)) {
           form.setValue("time", "")
         }
       })

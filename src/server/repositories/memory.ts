@@ -1,6 +1,7 @@
 import "server-only"
 
-import { buildDemoData, buildEmptyData } from "@/server/demo/seed"
+import { buildDemoData, buildEmptyData, DEMO_ORGANIZATION_ID } from "@/server/demo/seed"
+import { DEFAULT_BOOKING_SETTINGS } from "@/lib/booking"
 import { normalizePhone, phoneDigits, phoneMatchKey } from "@/lib/phone"
 import type {
   Appointment,
@@ -11,12 +12,13 @@ import type {
   Message,
   Organization,
   Payment,
+  Subscription,
   SalesLead,
   Service,
   StaffSchedule,
   User,
 } from "@/types"
-import { DEMO_ORGANIZATION_ID } from "@/server/context"
+
 import type { DateRange, Repositories } from "@/server/repositories/types"
 
 // In-process store, one bucket per organization. Lives on globalThis so it
@@ -33,6 +35,7 @@ interface OrgStore {
   schedules: StaffSchedule[]
   locations: Location[]
   organization: Organization | null
+  subscription: Subscription | null
   deposits: Deposit[]
   messages: Message[]
 }
@@ -70,6 +73,7 @@ function emptyStore(): OrgStore {
     schedules: [],
     locations: [],
     organization: null,
+    subscription: null,
     deposits: [],
     messages: [],
   }
@@ -179,15 +183,36 @@ export const memoryRepositories: Repositories = {
         phone: input.phone ?? "",
         avatar_url: "",
         is_active: true,
+        is_bookable: input.is_bookable ?? input.role === "STAFF",
+        auth_user_id: input.auth_user_id ?? null,
         created_at: now(),
         updated_at: now(),
       }
       org(orgId).users.push(user)
-      return user
+      return structuredClone(user)
     },
     async update(orgId, id, input) {
       const user = org(orgId).users.find((u) => u.id === id)
       return user ? patch(user, input) : null
+    },
+    async findByAuthUserId(authUserId) {
+      for (const [organizationId, store] of db().orgs) {
+        const user = store.users.find((u) => u.auth_user_id === authUserId)
+        if (user) return { organizationId, user: structuredClone(user) }
+      }
+      return null
+    },
+    async findByEmail(email) {
+      const wanted = email.trim().toLowerCase()
+      for (const [organizationId, store] of db().orgs) {
+        const user = store.users.find((u) => u.email.toLowerCase() === wanted)
+        if (user) return { organizationId, user: structuredClone(user) }
+      }
+      return null
+    },
+    async linkAuthUser(orgId, id, authUserId) {
+      const user = org(orgId).users.find((u) => u.id === id)
+      return user ? patch(user, { auth_user_id: authUserId }) : null
     },
   },
 
@@ -197,6 +222,15 @@ export const memoryRepositories: Repositories = {
     },
     async get(orgId, id) {
       return copy(org(orgId).services.find((s) => s.id === id))
+    },
+    async create(orgId, input) {
+      const service: Service = { id: newId("svc"), ...input, created_at: now(), updated_at: now() }
+      org(orgId).services.push(service)
+      return structuredClone(service)
+    },
+    async update(orgId, id, input) {
+      const service = org(orgId).services.find((s) => s.id === id)
+      return service ? patch(service, input) : null
     },
   },
 
@@ -364,7 +398,7 @@ export const memoryRepositories: Repositories = {
     },
     async getBySlug(slug) {
       for (const store of db().orgs.values()) {
-        if (store.organization?.slug === slug) return store.organization
+        if (store.organization?.slug === slug) return structuredClone(store.organization)
       }
       return null
     },
@@ -377,6 +411,74 @@ export const memoryRepositories: Repositories = {
       organization.booking = { ...settings }
       organization.updated_at = now()
       return structuredClone(organization)
+    },
+    async updateOnboarding(orgId, onboarding) {
+      const organization = org(orgId).organization
+      if (!organization) return null
+      organization.onboarding = { ...organization.onboarding, ...onboarding }
+      organization.updated_at = now()
+      return structuredClone(organization)
+    },
+    async createWithOwner(input) {
+      const id = `org-${crypto.randomUUID().slice(0, 12)}`
+      const store = emptyStore()
+      const organization: Organization = {
+        id,
+        name: input.name,
+        slug: input.slug,
+        country_code: input.country_code,
+        currency: input.currency,
+        booking: { ...DEFAULT_BOOKING_SETTINGS },
+        is_demo: false,
+        onboarding: { link_shared_at: null, dismissed_at: null },
+        created_at: now(),
+        updated_at: now(),
+      }
+      const owner: User = {
+        id: newId("admin"),
+        email: input.owner.email,
+        full_name: input.owner.full_name,
+        role: "ADMIN",
+        phone: normalizePhone(input.owner.phone),
+        avatar_url: "",
+        is_active: true,
+        is_bookable: false,
+        auth_user_id: input.owner.auth_user_id,
+        created_at: now(),
+        updated_at: now(),
+      }
+      store.organization = organization
+      store.users.push(owner)
+      store.locations.push({
+        id: newId("loc"),
+        name: input.name,
+        address: null,
+        phone: normalizePhone(input.phone),
+        timezone: input.timezone,
+        is_active: true,
+        created_at: now(),
+        updated_at: now(),
+      })
+      store.subscription = {
+        organization_id: id,
+        plan: input.plan,
+        status: "TRIALING",
+        trial_ends_at: input.trial_ends_at,
+        created_at: now(),
+        updated_at: now(),
+      }
+      db().orgs.set(id, store)
+      return { organization: structuredClone(organization), owner: structuredClone(owner) }
+    },
+  },
+
+  subscriptions: {
+    async get(orgId) {
+      return copy(org(orgId).subscription ?? undefined)
+    },
+    async update(orgId, input) {
+      const subscription = org(orgId).subscription
+      return subscription ? patch(subscription, input) : null
     },
   },
 

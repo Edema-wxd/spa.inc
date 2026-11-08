@@ -8,10 +8,11 @@ Spa.Inc is an admin and staff dashboard for spa / massage businesses: booking ca
 staff schedules, payments, revenue analytics, expenses and P&L, plus public marketing pages (landing, pricing,
 contact sales). The original product spec is `raw.txt`; `README.md` has the current overview.
 
-**Current state: demo.** No auth and no database are required. The backend layers exist
-(API routes, services, repositories, Prisma schema) and run against an in-memory store seeded by
-`src/server/demo/seed.ts`, which simulates 12 months of a seven-therapist spa. Every page reads
-services; never import seed data into pages or client components. The roadmap with action steps
+**Current state:** sign-up, email-code sign-in and a 14-day reverse trial work; by default
+everything runs against an in-memory store with on-screen demo codes, so no database or email
+provider is required. `/demo` signs a visitor into the sample business seeded by
+`src/server/demo/seed.ts` (12 months of a seven-therapist spa). Every page reads services; never
+import seed data into pages or client components. Auth setup is `docs/AUTH.md`. The roadmap with action steps
 is `docs/ACTION_PLAN.md`.
 
 ## Commands
@@ -48,7 +49,9 @@ src/app/
   book/[slug]/              public booking page, client manage page, demo checkout
   pricing/, contact-sales/  public pages
 src/server/                 server-only code
-  context.ts                getRequestContext(): organizationId, userId, role, plan (demo: cookie)
+  context.ts                getRequestContext() / getPageContext(): org, user, role, plan from the session
+  auth/                     Supabase email codes or demo codes, signed cookies (signed.ts)
+  services/accounts.ts      sign-up, sign-in, business creation; onboarding.ts, catalog.ts (services)
   entitlements.ts           assertFeature / assertCanAdd / assertRole
   errors.ts, http.ts        ApiError types, route() wrapper, ok()/created(), parseBody/parseQuery
   services/                 business rules per domain - the only place plan/role checks live
@@ -114,6 +117,12 @@ src/generated/              Prisma client output (gitignored)
 - Bookings: all scheduling rules (clashes, working hours, bookable staff, holds) live in
   `src/server/services/scheduling.ts`; the calendar and public page only offer what the
   availability endpoints return. Wrap "check then insert" in `withBookingLock(orgId, ...)`.
+- Auth: API routes call `getRequestContext()` (throws 401); pages and layouts call
+  `getPageContext()` (redirects to `/login`, and keeps staff on `/dashboard/calendar`).
+  `src/proxy.ts` only does a cookie check and Supabase refresh; the real check is the context.
+  Every query is scoped by `ctx.organizationId`; never take an organization id from the client.
+- Who takes bookings is `users.is_bookable`, not `role === "STAFF"` (owners can be bookable).
+- Link to `/demo` with a plain `<a>`, never `next/link`: a prefetch would sign the visitor in.
 - Public routes (`/book`, `/api/public`, webhooks, cron) have no session: they use
   `getSystemContext(orgId)` and only call the online-booking, deposit and messaging services.
   Address a client's booking by its `manage_token`, never by id.
@@ -136,8 +145,10 @@ src/generated/              Prisma client output (gitignored)
 - Downgrades keep existing data; they only block adding more.
 - Online booking is on every plan; deposits and WhatsApp reminders start at Manager. Online
   bookings are never refused for the client limit.
-- Demo plan lives in the `spa-plan` cookie (default `executive`), switched via `PUT /api/plan`
-  from Settings > Plan & Billing.
+- A real business's plan is `subscriptions.plan`; while `TRIALING` and before `trial_ends_at`
+  the effective plan is `executive` (reverse trial). The demo business's plan lives in the
+  `spa-plan` cookie (default `executive`). Both change via `PUT /api/plan` from Settings >
+  Plan & Billing (for a trial, it picks the plan the trial continues on).
 
 | Tier | Audience | USD | NGN | Admins | Clients | Locations |
 |------|----------|-----|-----|--------|---------|-----------|
@@ -153,7 +164,10 @@ src/generated/              Prisma client output (gitignored)
 
 ## Known gaps
 
-- No auth or route protection; `getRequestContext()` returns a fixed demo admin.
+- No billing yet: a trial simply moves to its chosen plan when it ends (item 4).
+- Sign-in is email only (no phone/WhatsApp codes) and team members get no invite email.
+- Staff can still read every client and booking through the APIs (item 6).
+- `/demo` needs the memory store (or `ALLOW_DEMO=true` plus a seeded database, not written yet).
 - The in-memory store resets on restart and is per server instance.
 - Email confirmations and sales lead alerts only log to the console. WhatsApp messages and
   deposits run in demo mode until provider keys are set (docs/ONLINE_BOOKING.md).

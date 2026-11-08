@@ -32,14 +32,16 @@ const RESOURCES: LimitedResource[] = ["clients", "admins", "locations"]
 
 export function PlanSettings() {
   const router = useRouter()
-  const { plan, planName, usage } = usePlan()
+  const { plan, planName, usage, isDemo, trial, chosenPlan } = usePlan()
+  // The demo switches its plan live; a real business picks the plan that applies after its trial
+  const selected = isDemo ? plan : chosenPlan
   const [pending, setPending] = useState<TierId | null>(null)
 
   async function switchPlan(next: TierId) {
     setPending(next)
     try {
       await apiFetch("/api/plan", { method: "PUT", body: { plan: next } })
-      toast.success(`Switched to the ${PLAN_NAMES[next]} plan`)
+      toast.success(isDemo || !trial ? `Switched to the ${PLAN_NAMES[next]} plan` : `You'll move to ${PLAN_NAMES[next]} when your trial ends`)
       router.refresh()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not change plan")
@@ -54,9 +56,13 @@ export function PlanSettings() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             Current plan
-            <Badge className="bg-spa-accent text-white">{planName}</Badge>
+            <Badge className="bg-spa-accent text-white">{trial ? "Full trial" : planName}</Badge>
           </CardTitle>
-          <CardDescription>Usage against your plan&apos;s limits.</CardDescription>
+          <CardDescription>
+            {trial
+              ? `Everything is unlocked for ${trial.daysLeft} more day${trial.daysLeft === 1 ? "" : "s"} (until ${new Date(trial.endsAt).toLocaleDateString("en-US", { month: "long", day: "numeric" })}). Then you move to ${trial.chosenPlanName}.`
+              : "Usage against your plan's limits."}
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 sm:grid-cols-3">
           {RESOURCES.map((resource) => (
@@ -67,9 +73,11 @@ export function PlanSettings() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Change plan</CardTitle>
+          <CardTitle>{trial ? "Plan after your trial" : "Change plan"}</CardTitle>
           <CardDescription>
-            Demo mode: switching is instant and free. Billing will replace this once it is set up.{" "}
+            {isDemo
+              ? "Demo: switching is instant and free, so you can see what each plan includes."
+              : "Billing isn't connected yet, so nothing is charged. Your choice is saved for when it is."}{" "}
             <Link href="/pricing" className="text-spa-accent hover:underline">
               Compare plans
             </Link>
@@ -77,7 +85,7 @@ export function PlanSettings() {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {TIER_IDS.map((tier) => {
-            const isCurrent = tier === plan
+            const isCurrent = tier === selected
             const overLimit = RESOURCES.filter((r) => {
               const limit = PLAN_LIMITS[tier][r]
               return limit !== null && usage[r].used > limit
@@ -106,23 +114,31 @@ export function PlanSettings() {
                     but you won&apos;t be able to add more.
                   </p>
                 )}
-                <Button
-                  className="mt-auto"
-                  variant={isCurrent ? "secondary" : "outline"}
-                  size="sm"
-                  disabled={isCurrent || pending !== null}
-                  onClick={() => switchPlan(tier)}
-                >
-                  {isCurrent ? (
-                    <>
-                      <Check className="h-4 w-4" /> Current plan
-                    </>
-                  ) : pending === tier ? (
-                    "Switching..."
-                  ) : (
-                    `Switch to ${PLAN_NAMES[tier]}`
-                  )}
-                </Button>
+                {tier === "enterprise" && !isDemo ? (
+                  <Button asChild className="mt-auto" variant="outline" size="sm">
+                    <Link href="/contact-sales?plan=enterprise">Contact sales</Link>
+                  </Button>
+                ) : (
+                  <Button
+                    className="mt-auto"
+                    variant={isCurrent ? "secondary" : "outline"}
+                    size="sm"
+                    disabled={isCurrent || pending !== null}
+                    onClick={() => switchPlan(tier)}
+                  >
+                    {isCurrent ? (
+                      <>
+                        <Check className="h-4 w-4" /> {trial ? "Your choice" : "Current plan"}
+                      </>
+                    ) : pending === tier ? (
+                      "Saving..."
+                    ) : trial ? (
+                      `Choose ${PLAN_NAMES[tier]}`
+                    ) : (
+                      `Switch to ${PLAN_NAMES[tier]}`
+                    )}
+                  </Button>
+                )}
               </div>
             )
           })}

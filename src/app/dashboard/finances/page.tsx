@@ -3,11 +3,11 @@ import { SummaryCard } from "@/components/shared/summary-card"
 import { ExpensesView } from "@/components/finances/expenses-view"
 import { hasFeature } from "@/lib/plans"
 import { formatCurrency, humanize } from "@/lib/utils"
-import { getRequestContext } from "@/server/context"
+import { getPageContext } from "@/server/context"
 import { getExpensesOverview } from "@/server/services/expenses"
 
 export default async function FinancesPage() {
-  const ctx = await getRequestContext()
+  const ctx = await getPageContext()
   // The segment layout shows the upgrade prompt on lower plans
   if (!hasFeature(ctx.plan, "expenseTracking")) return null
   const { rows, metrics, today } = await getExpensesOverview(ctx)

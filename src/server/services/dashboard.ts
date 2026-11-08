@@ -81,7 +81,8 @@ export async function getDashboardOverview(ctx: RequestContext): Promise<Dashboa
     getDirectory(ctx),
     canSeeExpenses ? repos.expenses.list(ctx.organizationId, { from: windowStart, to: todayKey }) : Promise.resolve([]),
     repos.users
-      .list(ctx.organizationId, { role: "STAFF", activeOnly: true })
+      .list(ctx.organizationId, { activeOnly: true })
+      .then((users) => users.filter((u) => u.is_bookable))
       .then((staff) => Promise.all(staff.map((s) => repos.schedules.listForStaff(ctx.organizationId, s.id))))
       .then((rows) => rows.flat()),
   ])
@@ -131,7 +132,7 @@ export async function getDashboardOverview(ctx: RequestContext): Promise<Dashboa
   if (hasFeature(ctx.plan, "revenueAnalytics")) {
     const totals = new Map<string, { total: number; sessions: number }>()
     for (const p of completed) {
-      if (p.payment_date < windowStart || directory.user(p.staff_id)?.role !== "STAFF") continue
+      if (p.payment_date < windowStart || !directory.user(p.staff_id)?.is_bookable) continue
       const row = totals.get(p.staff_id) ?? { total: 0, sessions: 0 }
       row.total += p.amount
       if (p.appointment_id) row.sessions += 1

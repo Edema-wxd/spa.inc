@@ -66,7 +66,7 @@ export async function getPublicBusiness(slug: string) {
   const repos = await getRepositories()
   const [services, staff, locations, clock] = await Promise.all([
     repos.services.list(org.id),
-    repos.users.list(org.id, { role: "STAFF", activeOnly: true }),
+    repos.users.list(org.id, { activeOnly: true }).then((rows) => rows.filter((u) => u.is_bookable)),
     repos.locations.list(org.id),
     getBusinessClock(ctx),
   ])

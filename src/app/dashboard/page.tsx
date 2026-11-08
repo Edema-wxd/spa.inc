@@ -6,15 +6,32 @@ import { WeeklyVisitsChart } from "@/components/charts/weekly-visits-chart"
 import { UpcomingAppointments } from "@/components/dashboard/upcoming-appointments"
 import { FeatureGate } from "@/components/plan/feature-gate"
 import { formatCurrency, formatPercentChange } from "@/lib/utils"
-import { getRequestContext } from "@/server/context"
+import { getPageContext } from "@/server/context"
 import { getDashboardOverview } from "@/server/services/dashboard"
+import { getOnboarding } from "@/server/services/onboarding"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
 
 export default async function DashboardPage() {
-  const data = await getDashboardOverview(await getRequestContext())
+  const ctx = await getPageContext()
+  const [data, onboarding] = await Promise.all([getDashboardOverview(ctx), getOnboarding(ctx)])
   const { today, month, clients } = data
 
   return (
     <div>
+      {!onboarding.complete && !onboarding.dismissed && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-spa-200 bg-spa-50 p-4">
+          <div>
+            <p className="font-semibold">Finish setting up {onboarding.business.name}</p>
+            <p className="text-sm text-muted-foreground">
+              {onboarding.done} of {onboarding.total} done. Add your treatments and hours, then share your booking link.
+            </p>
+          </div>
+          <Button asChild>
+            <Link href="/dashboard/welcome">Continue setup</Link>
+          </Button>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
         <SummaryCard
           title="Today's Revenue"
